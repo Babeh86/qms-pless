@@ -53,7 +53,7 @@ export function FlatSheetForm({ template }: { template: ChecksheetTemplate }) {
   const [values, setValues] = useState<ValueMap>({});
   const [header, setHeader] = useState<HeaderValues>(EMPTY_HEADER);
   const [submitted, setSubmitted] = useState(false);
-  const { state: saveState, message: saveMessage, saveDraft } = useSaveDraft();
+  const { state: saveState, message: saveMessage, saveDraft, savedId } = useSaveDraft();
 
   const allItems = useMemo(
     () =>
@@ -82,6 +82,26 @@ export function FlatSheetForm({ template }: { template: ChecksheetTemplate }) {
   }
 
   const readOnly = submitted;
+
+  async function persistDraft(): Promise<string | null> {
+    const saved = await saveDraft({
+      formCode: template.code,
+      formName: template.title,
+      templateRevision: "00",
+      partNo: header.partNo ?? "",
+      partName: header.partName ?? "",
+      ...(header.supplier ? { supplierSnapshot: header.supplier } : {}),
+      ...(header.customer ? { customerSnapshot: header.customer } : {}),
+      lotNo: header.lotNo ?? "",
+      inspectionDate: header.inspectionDate ?? "",
+      headerSnapshot: header,
+      itemSnapshot: values,
+      totalItems: allItems.length,
+      ngItems: ngCount,
+      finalJudgment,
+    });
+    return saved ? savedId : null;
+  }
 
   return (
     <div className="space-y-4 pb-24">
@@ -138,7 +158,7 @@ export function FlatSheetForm({ template }: { template: ChecksheetTemplate }) {
         onReset={() => setHeader(EMPTY_HEADER)}
       />
 
-      <ChecksheetAttachments />
+      <ChecksheetAttachments checksheetId={savedId} onBeforeUpload={persistDraft} />
 
       <div className="flex items-start gap-2 rounded-lg border border-info-500/20 bg-info-50 px-3 py-2.5">
         <Info className="mt-0.5 h-3.5 w-3.5 shrink-0 text-info-600" aria-hidden="true" />
@@ -406,24 +426,7 @@ export function FlatSheetForm({ template }: { template: ChecksheetTemplate }) {
               size="md"
               iconLeft={<Save className="h-4 w-4" />}
               disabled={readOnly || saveState === "saving"}
-              onClick={() =>
-                void saveDraft({
-                  formCode: template.code,
-                  formName: template.title,
-                  templateRevision: "00",
-                  partNo: header.partNo ?? "",
-                  partName: header.partName ?? "",
-                  ...(header.supplier ? { supplierSnapshot: header.supplier } : {}),
-                  ...(header.customer ? { customerSnapshot: header.customer } : {}),
-                  lotNo: header.lotNo ?? "",
-                  inspectionDate: header.inspectionDate ?? "",
-                  headerSnapshot: header,
-                  itemSnapshot: values,
-                  totalItems: allItems.length,
-                  ngItems: ngCount,
-                  finalJudgment,
-                })
-              }
+              onClick={() => void persistDraft()}
             >
               {saveState === "saving" ? t("savingDraft") : t("saveDraft")}
             </Button>

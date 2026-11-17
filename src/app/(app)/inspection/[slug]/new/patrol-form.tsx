@@ -64,7 +64,7 @@ export function PatrolForm({ template }: { template: ChecksheetTemplate }) {
   const [header, setHeader] = useState<HeaderValues>(EMPTY_HEADER);
   const [ngReport, setNgReport] = useState<{ slot: string; no: string } | null>(null);
   const [ngSaved, setNgSaved] = useState(false);
-  const { state: saveState, message: saveMessage, saveDraft } = useSaveDraft();
+  const { state: saveState, message: saveMessage, saveDraft, savedId } = useSaveDraft();
 
   const cellKey = (slot: string, no: string) => `${slot}|${no}`;
 
@@ -90,6 +90,26 @@ export function PatrolForm({ template }: { template: ChecksheetTemplate }) {
     (h) => h.required && (header[h.key] ?? "").trim() === "",
   ).length;
   const canSubmit = filled === totalCells && !needsRemark && headerMissing === 0;
+
+  async function persistDraft(): Promise<string | null> {
+    const saved = await saveDraft({
+      formCode: template.code,
+      formName: template.title,
+      templateRevision: "00",
+      partNo: header.partNo ?? "",
+      partName: header.partName ?? "",
+      ...(header.customer ? { customerSnapshot: header.customer } : {}),
+      lotNo: header.lotNo ?? "",
+      inspectionDate: header.date ?? "",
+      headerSnapshot: { ...header, pic },
+      itemSnapshot: cells,
+      remarksSnapshot: rowRemarks,
+      totalItems: totalCells,
+      ngItems: ngCount,
+      finalJudgment: ngCount > 0 ? "NG" : filled === totalCells ? "OK" : null,
+    });
+    return saved ? savedId : null;
+  }
 
   return (
     <div className="space-y-4 pb-24">
@@ -128,7 +148,7 @@ export function PatrolForm({ template }: { template: ChecksheetTemplate }) {
         onReset={() => setHeader(EMPTY_HEADER)}
       />
 
-      <ChecksheetAttachments />
+      <ChecksheetAttachments checksheetId={savedId} onBeforeUpload={persistDraft} />
 
       <Card className="overflow-hidden border-slate-200/80">
         <CardContent className="grid gap-4 p-4 lg:grid-cols-[1.35fr_1fr]">
@@ -428,24 +448,7 @@ export function PatrolForm({ template }: { template: ChecksheetTemplate }) {
               size="md"
               iconLeft={<Save className="h-4 w-4" />}
               disabled={saveState === "saving"}
-              onClick={() =>
-                void saveDraft({
-                  formCode: template.code,
-                  formName: template.title,
-                  templateRevision: "00",
-                  partNo: header.partNo ?? "",
-                  partName: header.partName ?? "",
-                  ...(header.customer ? { customerSnapshot: header.customer } : {}),
-                  lotNo: header.lotNo ?? "",
-                  inspectionDate: header.date ?? "",
-                  headerSnapshot: { ...header, pic },
-                  itemSnapshot: cells,
-                  remarksSnapshot: rowRemarks,
-                  totalItems: totalCells,
-                  ngItems: ngCount,
-                  finalJudgment: ngCount > 0 ? "NG" : filled === totalCells ? "OK" : null,
-                })
-              }
+              onClick={() => void persistDraft()}
             >
               {saveState === "saving" ? t("savingDraft") : t("saveDraft")}
             </Button>

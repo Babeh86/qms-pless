@@ -46,7 +46,7 @@ export function IdsForm({ template }: { template: ChecksheetTemplate }) {
   const t = useTranslations("form");
   const [values, setValues] = useState<ValueMap>({});
   const [header, setHeader] = useState<HeaderValues>(EMPTY_HEADER);
-  const { state: saveState, message: saveMessage, saveDraft } = useSaveDraft();
+  const { state: saveState, message: saveMessage, saveDraft, savedId } = useSaveDraft();
 
   const cavities = Array.from({ length: IDS_CAVITY_COUNT }, (_, i) => i + 1);
   const rowJudgments: ("OK" | "NG" | null)[] = IDS_ROWS.map((row, idx) => rowJudge(values, idx, row));
@@ -57,6 +57,25 @@ export function IdsForm({ template }: { template: ChecksheetTemplate }) {
     (h) => h.required && (header[h.key] ?? "").trim() === "",
   ).length;
   const canSubmit = filledRows === IDS_ROWS.length && ngRows === 0 && headerMissing === 0;
+
+  async function persistDraft(): Promise<string | null> {
+    const saved = await saveDraft({
+      formCode: template.code,
+      formName: template.title,
+      templateRevision: "00",
+      partNo: header.partNo ?? "",
+      partName: header.partName ?? "",
+      ...(header.customer ? { customerSnapshot: header.customer } : {}),
+      lotNo: header.lotNo ?? "",
+      inspectionDate: header.inspectionDate ?? "",
+      headerSnapshot: header,
+      itemSnapshot: values,
+      totalItems: IDS_ROWS.length * IDS_CAVITY_COUNT,
+      ngItems: ngRows,
+      finalJudgment,
+    });
+    return saved ? savedId : null;
+  }
 
   function setValue(k: string, v: string) {
     setValues((prev) => ({ ...prev, [k]: v }));
@@ -97,7 +116,7 @@ export function IdsForm({ template }: { template: ChecksheetTemplate }) {
         onReset={() => setHeader(EMPTY_HEADER)}
       />
 
-      <ChecksheetAttachments />
+      <ChecksheetAttachments checksheetId={savedId} onBeforeUpload={persistDraft} />
 
       <Card className="overflow-hidden border-slate-200/80">
         <CardContent className="grid gap-4 p-4 lg:grid-cols-[1.6fr_1fr]">
@@ -302,23 +321,7 @@ export function IdsForm({ template }: { template: ChecksheetTemplate }) {
               size="md"
               iconLeft={<Save className="h-4 w-4" />}
               disabled={saveState === "saving"}
-              onClick={() =>
-                void saveDraft({
-                  formCode: template.code,
-                  formName: template.title,
-                  templateRevision: "00",
-                  partNo: header.partNo ?? "",
-                  partName: header.partName ?? "",
-                  ...(header.customer ? { customerSnapshot: header.customer } : {}),
-                  lotNo: header.lotNo ?? "",
-                  inspectionDate: header.inspectionDate ?? "",
-                  headerSnapshot: header,
-                  itemSnapshot: values,
-                  totalItems: IDS_ROWS.length * IDS_CAVITY_COUNT,
-                  ngItems: ngRows,
-                  finalJudgment,
-                })
-              }
+              onClick={() => void persistDraft()}
             >
               {saveState === "saving" ? t("savingDraft") : t("saveDraft")}
             </Button>

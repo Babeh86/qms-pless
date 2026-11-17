@@ -11,7 +11,15 @@ const ALLOWED_EXTENSIONS = new Set(ACCEPTED.split(","));
 
 type Attachment = { id: string; file: File; previewUrl?: string; source: "file" | "camera" };
 
-export function ChecksheetAttachments() {
+export function ChecksheetAttachments({
+  checksheetId,
+  onBeforeUpload,
+}: {
+  checksheetId?: string | null;
+  /** Persists the draft first so the attachment is linked to a real document. */
+  onBeforeUpload?: () => Promise<string | null>;
+} = {}) {
+  const [uploadState, setUploadState] = useState<Record<string, "pending" | "uploading" | "stored" | "failed">>({});
   const t = useTranslations("form");
   const inputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
@@ -51,7 +59,48 @@ export function ChecksheetAttachments() {
         : undefined;
       accepted.push({ id: crypto.randomUUID(), file, previewUrl, source: "file" });
     }
-    if (accepted.length) setFiles((current) => [...current, ...accepted]);
+    if (accepted.length) {
+      setFiles((current) => [...current, ...accepted]);
+      void uploadAll(accepted);
+    }
+  }
+
+  async function uploadAll(attachments: Attachment[]) {
+    let targetId = checksheetId ?? null;
+    if (!targetId && onBeforeUpload) targetId = await onBeforeUpload();
+    if (!targetId) {
+      setError(t("attachmentNeedsDraft"));
+      setUploadState((current) => ({
+        ...current,
+        ...Object.fromEntries(attachments.map((attachment) => [attachment.id, "failed" as const])),
+      }));
+      return;
+    }
+
+    for (const attachment of attachments) {
+      setUploadState((current) => ({ ...current, [attachment.id]: "uploading" }));
+      const data = new FormData();
+      data.append("file", attachment.file, attachment.file.name);
+      try {
+        const response = await fetch(`/api/checksheets/${targetId}/attachments`, {
+          method: "POST",
+          body: data,
+        });
+        if (!response.ok) {
+          setUploadState((current) => ({ ...current, [attachment.id]: "failed" }));
+          setError(
+            response.status === 503
+              ? t("attachmentStorageUnavailable")
+              : t("attachmentUploadFailed", { name: attachment.file.name }),
+          );
+          continue;
+        }
+        setUploadState((current) => ({ ...current, [attachment.id]: "stored" }));
+      } catch {
+        setUploadState((current) => ({ ...current, [attachment.id]: "failed" }));
+        setError(t("attachmentUploadFailed", { name: attachment.file.name }));
+      }
+    }
   }
 
   async function openCamera() {
@@ -93,6 +142,13 @@ export function ChecksheetAttachments() {
     }, "image/jpeg", 0.92);
   }
 
+  function uploadLabel(state?: "pending" | "uploading" | "stored" | "failed") {
+    if (state === "stored") return t("attachmentStored");
+    if (state === "uploading") return t("attachmentUploading");
+    if (state === "failed") return t("attachmentFailed");
+    return t("attachmentPending");
+  }
+
   function removeFile(id: string) {
     setFiles((current) => {
       const removed = current.find((attachment) => attachment.id === id);
@@ -124,7 +180,7 @@ export function ChecksheetAttachments() {
 
         {error ? <p role="alert" className="rounded-md bg-rose-50 px-3 py-2 text-[10px] font-medium text-rose-700">{error}</p> : null}
 
-        {files.length ? <ul className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">{files.map((attachment) => <li key={attachment.id} className="flex min-w-0 items-center gap-2 rounded-lg border border-slate-200 bg-white p-2"><span className="grid h-9 w-9 shrink-0 place-items-center overflow-hidden rounded-md bg-slate-100 text-slate-500">{attachment.previewUrl && attachment.file.type.startsWith("image/") ? <span role="img" aria-label={attachment.file.name} className="h-full w-full bg-cover bg-center" style={{ backgroundImage: `url(${attachment.previewUrl})` }}/> : attachment.file.type === "application/pdf" ? <FileText className="h-4 w-4 text-rose-600"/> : attachment.file.type.startsWith("image/") ? <FileImage className="h-4 w-4 text-blue-600"/> : <FileText className="h-4 w-4"/>}</span><span className="min-w-0 flex-1"><span className="block truncate text-[10px] font-semibold text-slate-700" title={attachment.file.name}>{attachment.file.name}</span><span className="block text-[9px] text-slate-400">{(attachment.file.size / (1024 * 1024)).toFixed(2)} {t("megabyteUnit")} · {attachment.source === "camera" ? t("cameraPhoto") : attachment.file.type || t("technicalFile")}</span></span><button type="button" onClick={() => removeFile(attachment.id)} aria-label={t("removeAttachment", { name: attachment.file.name })} className="grid h-7 w-7 shrink-0 place-items-center rounded-md text-slate-400 hover:bg-rose-50 hover:text-rose-600"><Trash2 className="h-3.5 w-3.5"/></button></li>)}</ul> : null}
+        {files.length ? <ul className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">{files.map((attachment) => <li key={attachment.id} className="flex min-w-0 items-center gap-2 rounded-lg border border-slate-200 bg-white p-2"><span className="grid h-9 w-9 shrink-0 place-items-center overflow-hidden rounded-md bg-slate-100 text-slate-500">{attachment.previewUrl && attachment.file.type.startsWith("image/") ? <span role="img" aria-label={attachment.file.name} className="h-full w-full bg-cover bg-center" style={{ backgroundImage: `url(${attachment.previewUrl})` }}/> : attachment.file.type === "application/pdf" ? <FileText className="h-4 w-4 text-rose-600"/> : attachment.file.type.startsWith("image/") ? <FileImage className="h-4 w-4 text-blue-600"/> : <FileText className="h-4 w-4"/>}</span><span className="min-w-0 flex-1"><span className="block truncate text-[10px] font-semibold text-slate-700" title={attachment.file.name}>{attachment.file.name}</span><span className="block text-[9px] text-slate-400">{(attachment.file.size / (1024 * 1024)).toFixed(2)} {t("megabyteUnit")} · {uploadLabel(uploadState[attachment.id])} · {attachment.source === "camera" ? t("cameraPhoto") : attachment.file.type || t("technicalFile")}</span></span><button type="button" onClick={() => removeFile(attachment.id)} aria-label={t("removeAttachment", { name: attachment.file.name })} className="grid h-7 w-7 shrink-0 place-items-center rounded-md text-slate-400 hover:bg-rose-50 hover:text-rose-600"><Trash2 className="h-3.5 w-3.5"/></button></li>)}</ul> : null}
       </CardContent>
 
       {cameraOpen ? <div className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/70 p-4" role="presentation" onClick={closeCamera}><section role="dialog" aria-modal="true" aria-labelledby="camera-title" className="w-full max-w-2xl overflow-hidden rounded-xl bg-white shadow-2xl" onClick={(event) => event.stopPropagation()}><div className="flex items-center justify-between border-b border-slate-100 px-4 py-3"><div><h2 id="camera-title" className="text-sm font-bold text-slate-800">{t("cameraTitle")}</h2><p className="mt-0.5 text-[10px] text-slate-500">{t("cameraHint")}</p></div><button type="button" onClick={closeCamera} aria-label={t("closeCamera")} className="grid h-8 w-8 place-items-center rounded-lg text-slate-500 hover:bg-slate-100"><X className="h-4 w-4"/></button></div><div className="bg-black"><video ref={videoRef} autoPlay playsInline className="max-h-[65vh] w-full object-contain"/></div><div className="flex justify-end gap-2 p-3"><button type="button" onClick={closeCamera} className="h-9 rounded-lg border border-slate-200 px-4 text-xs font-medium text-slate-700">{t("cancelCamera")}</button><button type="button" onClick={capturePhoto} className="inline-flex h-9 items-center gap-2 rounded-lg bg-blue-700 px-4 text-xs font-semibold text-white hover:bg-blue-800"><Camera className="h-4 w-4"/>{t("capturePhoto")}</button></div></section></div> : null}

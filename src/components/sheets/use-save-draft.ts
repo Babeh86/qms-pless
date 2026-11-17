@@ -25,27 +25,28 @@ export type DraftSaveState = "idle" | "saving" | "saved" | "error";
 /**
  * Saves a checksheet draft immediately (not a submission/approval).
  * The idempotency key is stable for this form session so retries do not duplicate.
+ * Returns the persisted document id so attachments can be linked to it.
  */
 export function useSaveDraft() {
   const [state, setState] = useState<DraftSaveState>("idle");
   const [message, setMessage] = useState<string | null>(null);
-  const savedId = useRef<string | null>(null);
+  const [savedId, setSavedId] = useState<string | null>(null);
   const idempotencyKey = useRef(
     typeof crypto === "undefined" ? "draft-session" : crypto.randomUUID(),
   );
 
-  async function saveDraft(payload: DraftPayload): Promise<boolean> {
+  async function saveDraft(payload: DraftPayload): Promise<string | null> {
     setState("saving");
     setMessage(null);
 
     try {
       const response = await fetch(
-        savedId.current ? `/api/checksheets/${savedId.current}` : "/api/checksheets",
+        savedId ? `/api/checksheets/${savedId}` : "/api/checksheets",
         {
-          method: savedId.current ? "PATCH" : "POST",
+          method: savedId ? "PATCH" : "POST",
           headers: { "content-type": "application/json" },
           body: JSON.stringify(
-            savedId.current
+            savedId
               ? {
                   headerSnapshot: payload.headerSnapshot,
                   itemSnapshot: payload.itemSnapshot,
@@ -66,20 +67,20 @@ export function useSaveDraft() {
             ? "Anda tidak memiliki izin menyimpan draft."
             : "Draft gagal disimpan. Periksa kelengkapan data lalu coba lagi.",
         );
-        return false;
+        return null;
       }
 
       const record: { id: string } = await response.json();
-      savedId.current = record.id;
+      setSavedId(record.id);
       setState("saved");
       setMessage("Draft tersimpan di server.");
-      return true;
+      return record.id;
     } catch {
       setState("error");
       setMessage("Koneksi gagal. Draft belum tersimpan.");
-      return false;
+      return null;
     }
   }
 
-  return { state, message, saveDraft };
+  return { state, message, saveDraft, savedId };
 }
