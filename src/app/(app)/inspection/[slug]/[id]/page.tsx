@@ -13,6 +13,135 @@ import {
   checksheetHeaderSnapshot,
   checksheetItemSnapshot,
 } from "./checksheet-record";
+import { requireSession } from "@/server/authz/guard";
+import { getChecksheet } from "@/server/checksheet/checksheet-service";
+
+type ViewDocument = {
+  id: string;
+  number: string;
+  status: "DRAFT" | "SUBMITTED" | "CHECKED" | "APPROVED" | "REJECTED" | "ARCHIVED";
+  finalJudgment: "OK" | "NG" | null;
+  inspectorName: string;
+  checkedByName?: string;
+  approvedByName?: string;
+  totalItems: number;
+  ngItems: number;
+  lotNo: string;
+  partNo: string;
+  partName: string;
+  supplierCode?: string;
+  customerName?: string;
+  machineNo?: string;
+  inspectionDate: string;
+  formCode: string;
+  formName: string;
+  headerSnapshot?: Record<string, string>;
+  itemSnapshot?: Record<string, string>;
+  remarksSnapshot?: Record<string, string>;
+};
+
+/**
+ * Prefers the persisted checksheet snapshot; falls back to bundled samples for
+ * legacy demo documents. Authorization is enforced by the persistence service.
+ */
+async function loadDocument(id: string, formCode: string): Promise<ViewDocument | null> {
+  try {
+    const ctx = await requireSession();
+    const persisted = await getChecksheet(ctx, id);
+    if (persisted) {
+      const user = await (await import("@/server/db/client")).prisma.user.findUnique({
+        where: { id: persisted.createdById },
+        select: { fullName: true },
+      });
+      return {
+        id: persisted.id,
+        number: persisted.number,
+        status: persisted.status,
+        finalJudgment: persisted.finalJudgment,
+        inspectorName: user?.fullName ?? "—",
+        totalItems: persisted.totalItems,
+        ngItems: persisted.ngItems,
+        lotNo: persisted.lotNoSnapshot,
+        partNo: persisted.partNoSnapshot,
+        partName: persisted.partNameSnapshot,
+        ...(persisted.supplierSnapshot ? { supplierCode: persisted.supplierSnapshot } : {}),
+        ...(persisted.customerSnapshot ? { customerName: persisted.customerSnapshot } : {}),
+        inspectionDate: persisted.inspectionDate.toISOString().slice(0, 10),
+        formCode: persisted.formCode,
+        formName: persisted.formName,
+        headerSnapshot: persisted.headerSnapshot as Record<string, string>,
+        itemSnapshot: persisted.itemSnapshot as Record<string, string>,
+        ...(persisted.remarksSnapshot
+          ? { remarksSnapshot: persisted.remarksSnapshot as Record<string, string> }
+          : {}),
+      };
+    }
+  } catch {
+    // Unauthenticated/forbidden: fall back only to bundled sample documents.
+  }
+
+  const sample = checksheets.find((entry) => entry.id === id && entry.formCode === formCode);
+  return sample ? { ...sample, lotNo: sample.lotNo } : null;
+}
+
+/**
+ * Bundled sample documents have no persisted snapshot, so generate the same
+ * deterministic legacy view as before. Persisted documents always take their
+ * own stored snapshot.
+ */
+function legacySnapshot(doc: ViewDocument): Record<string, string> {
+  return checksheetHeaderSnapshot({
+    id: doc.id,
+    number: doc.number,
+    formCode: doc.formCode,
+    formName: doc.formName,
+    category: "INCOMING",
+    partNo: doc.partNo,
+    partName: doc.partName,
+    ...(doc.supplierCode ? { supplierCode: doc.supplierCode } : {}),
+    ...(doc.customerName ? { customerName: doc.customerName } : {}),
+    ...(doc.machineNo ? { machineNo: doc.machineNo } : {}),
+    lotNo: doc.lotNo,
+    inspectionDate: doc.inspectionDate,
+    status: doc.status,
+    finalJudgment: doc.finalJudgment,
+    inspectorName: doc.inspectorName,
+    ...(doc.checkedByName ? { checkedByName: doc.checkedByName } : {}),
+    ...(doc.approvedByName ? { approvedByName: doc.approvedByName } : {}),
+    totalItems: doc.totalItems,
+    ngItems: doc.ngItems,
+  });
+}
+
+function legacyItemSnapshot(
+  doc: ViewDocument,
+  template: Parameters<typeof checksheetItemSnapshot>[1],
+): Record<string, string> {
+  return checksheetItemSnapshot(
+    {
+      id: doc.id,
+      number: doc.number,
+      formCode: doc.formCode,
+      formName: doc.formName,
+      category: "INCOMING",
+      partNo: doc.partNo,
+      partName: doc.partName,
+      ...(doc.supplierCode ? { supplierCode: doc.supplierCode } : {}),
+      ...(doc.customerName ? { customerName: doc.customerName } : {}),
+      ...(doc.machineNo ? { machineNo: doc.machineNo } : {}),
+      lotNo: doc.lotNo,
+      inspectionDate: doc.inspectionDate,
+      status: doc.status,
+      finalJudgment: doc.finalJudgment,
+      inspectorName: doc.inspectorName,
+      ...(doc.checkedByName ? { checkedByName: doc.checkedByName } : {}),
+      ...(doc.approvedByName ? { approvedByName: doc.approvedByName } : {}),
+      totalItems: doc.totalItems,
+      ngItems: doc.ngItems,
+    },
+    template,
+  );
+}
 
 export default async function SheetDetailPage({
   params,
@@ -23,7 +152,7 @@ export default async function SheetDetailPage({
   const meta = getTemplate(slug);
   if (!meta) notFound();
 
-  const doc = checksheets.find((c) => c.id === id);
+  const doc = await loadDocument(id, meta.code);
   if (!doc) notFound();
 
   const t = await getTranslations("form");
@@ -32,10 +161,15 @@ export default async function SheetDetailPage({
   const part = parts.find((p) => p.partNo === doc.partNo);
   const material = part ? materialById(part.materialId) : undefined;
 
+  // Persisted snapshots store display values; legacy samples store partner codes.
+  const supplierLabel = doc.supplierCode
+    ? (partnerByCode(doc.supplierCode)?.name ?? doc.supplierCode)
+    : "";
+
   const headerValues: Record<string, string> = {
     partNo: doc.partNo,
     partName: doc.partName,
-    supplier: partnerByCode(doc.supplierCode)?.name ?? doc.supplierCode ?? "",
+    supplier: supplierLabel,
     customer: doc.customerName ?? "",
     material: material
       ? [material.name, material.additiveMasterbatch, material.color].filter(Boolean).join(" ")
@@ -49,7 +183,7 @@ export default async function SheetDetailPage({
     lotNo: doc.lotNo,
     inspectionDate: doc.inspectionDate,
     date: doc.inspectionDate,
-    ...checksheetHeaderSnapshot(doc),
+    ...(doc.headerSnapshot ?? {}),
   };
 
   const steps = [
@@ -146,9 +280,30 @@ export default async function SheetDetailPage({
         </div>
         <ChecksheetRecord
           doc={{
-            ...doc,
-            headerSnapshot: checksheetHeaderSnapshot(doc),
-            itemSnapshot: checksheetItemSnapshot(doc, meta.template),
+            id: doc.id,
+            number: doc.number,
+            formCode: doc.formCode,
+            formName: doc.formName,
+            category: doc.formCode === "CS-01" || doc.formCode === "CS-02" || doc.formCode === "CS-03"
+              ? "INCOMING"
+              : "IN_PROCESS",
+            partNo: doc.partNo,
+            partName: doc.partName,
+            ...(doc.supplierCode ? { supplierCode: doc.supplierCode } : {}),
+            ...(doc.customerName ? { customerName: doc.customerName } : {}),
+            ...(doc.machineNo ? { machineNo: doc.machineNo } : {}),
+            lotNo: doc.lotNo,
+            inspectionDate: doc.inspectionDate,
+            status: doc.status,
+            finalJudgment: doc.finalJudgment,
+            inspectorName: doc.inspectorName,
+            ...(doc.checkedByName ? { checkedByName: doc.checkedByName } : {}),
+            ...(doc.approvedByName ? { approvedByName: doc.approvedByName } : {}),
+            totalItems: doc.totalItems,
+            ngItems: doc.ngItems,
+            headerSnapshot: doc.headerSnapshot ?? legacySnapshot(doc),
+            itemSnapshot: doc.itemSnapshot ?? legacyItemSnapshot(doc, meta.template),
+            remarksSnapshot: doc.remarksSnapshot ?? {},
           }}
           template={meta.template}
         />

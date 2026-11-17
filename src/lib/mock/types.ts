@@ -104,6 +104,8 @@ export interface Checksheet {
   headerSnapshot?: Record<string, string>;
   /** Captured inspection values, indexed using the corresponding template's item keys. */
   itemSnapshot?: Record<string, string>;
+  /** Captured per-item/row remarks. */
+  remarksSnapshot?: Record<string, string>;
 }
 
 export interface ShiftTemplate {
