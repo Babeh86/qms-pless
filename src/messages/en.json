@@ -760,7 +760,8 @@
     "activeStatus": "Active",
     "inactiveStatus": "Inactive",
     "manual": "Manual",
-    "quickAdd": "Quick-Add"
+    "quickAdd": "Quick-Add",
+    "sampleDataNotice": "Showing sample data: no persisted checksheets are in the approval queue yet."
   },
   "demoLogin": {
     "title": "Choose an Account (Demo)",

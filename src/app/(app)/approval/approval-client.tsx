@@ -37,16 +37,24 @@ function agingDays(dateStr: string): number {
 
 type Tab = "CHECKED" | "APPROVED";
 
-export function ApprovalClient({ checksheets }: { checksheets: Checksheet[] }) {
+export function ApprovalClient({
+  checksheets,
+  usingSamples = false,
+}: {
+  checksheets: Checksheet[];
+  usingSamples?: boolean;
+}) {
   const t = useTranslations("approval");
   const router = useRouter();
   const tIns = useTranslations("inspection");
   const tLit = useTranslations("lit");
-  const [tab, setTab] = useState<Tab>("CHECKED");
-
   const submitted = checksheets.filter((c) => c.status === "SUBMITTED");
   const checked = checksheets.filter((c) => c.status === "CHECKED");
   const rejected = checksheets.filter((c) => c.status === "REJECTED");
+  // Approve-only roles should land on the queue they can act on.
+  const defaultTab: Tab = submitted.length === 0 && checked.length > 0 ? "APPROVED" : "CHECKED";
+
+  const [tab, setTab] = useState<Tab>(defaultTab);
 
   const rows = tab === "CHECKED" ? submitted : checked;
 
@@ -58,6 +66,12 @@ export function ApprovalClient({ checksheets }: { checksheets: Checksheet[] }) {
   return (
     <div className="space-y-4">
       <PageHeader title={t("title")} description={t("subtitle")} />
+
+      {usingSamples ? (
+        <p className="rounded-lg border border-warning-500/30 bg-warning-50 px-3 py-2 text-[11px] font-medium text-warning-800">
+          {tLit("sampleDataNotice")}
+        </p>
+      ) : null}
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard

@@ -760,7 +760,8 @@
     "activeStatus": "Aktif",
     "inactiveStatus": "Nonaktif",
     "manual": "Manual",
-    "quickAdd": "Quick-Add"
+    "quickAdd": "Quick-Add",
+    "sampleDataNotice": "Menampilkan data contoh: belum ada checksheet tersimpan dalam antrian approval."
   },
   "demoLogin": {
     "title": "Pilih Akun (Demo)",
