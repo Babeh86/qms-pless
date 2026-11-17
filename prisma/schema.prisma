@@ -1,0 +1,157 @@
+// ─────────────────────────────────────────────────────────────
+// QMS — Prisma Schema (Fondasi)
+// SPEC-0001 §3 · ISSUE-0001
+// ─────────────────────────────────────────────────────────────
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─────────────── Enum ───────────────
+
+/// 6 peran sistem (SPEC-0001 §4.1)
+enum RoleCode {
+  ADMIN // administrator sistem (semua akses)
+  MD_ADMIN // admin master data
+  INSPECTOR // QC inspector
+  CHECKED // QC supervisor / verifier
+  APPROVED // QC manager
+  VIEWER // auditor / read-only
+}
+
+/// Aksi yang dicatat pada audit trail (SPEC-0001 §8)
+enum AuditAction {
+  LOGIN_SUCCESS
+  LOGIN_FAILED
+  LOGOUT
+  CREATE
+  UPDATE
+  DELETE
+  SOFT_DELETE
+  SUBMIT
+  APPROVE
+  REJECT
+  EXPORT
+  IMPORT
+  VIEW
+}
+
+// ─────────────── Plant ───────────────
+
+/// Lokasi / pabrik. Scope utama seluruh data transaksi (FR-04).
+model Plant {
+  id        String   @id @default(cuid())
+  code      String   @unique // "KRW"
+  name      String // "KARAWANG"
+  address   String?
+  logoUrl   String?
+  timezone  String   @default("Asia/Jakarta")
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  users     UserRole[]
+  sessions  Session[]
+  auditLogs AuditLog[]
+
+  @@map("plants")
+}
+
+// ─────────────── User ───────────────
+
+model User {
+  id             String    @id @default(cuid())
+  username       String    @unique
+  email          String    @unique
+  fullName       String
+  passwordHash   String
+  isActive       Boolean   @default(true)
+  lastLoginAt    DateTime?
+  failedAttempts Int       @default(0)
+  lockedUntil    DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  roles     UserRole[]
+  sessions  Session[]
+  auditLogs AuditLog[]
+
+  @@index([isActive])
+  @@map("users")
+}
+
+// ─────────────── UserRole (user × role × plant) ───────────────
+
+/// Satu user dapat memiliki banyak peran, masing-masing terikat ke plant.
+model UserRole {
+  id        String   @id @default(cuid())
+  userId    String
+  role      RoleCode
+  plantId   String
+  createdAt DateTime @default(now())
+
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  plant Plant @relation(fields: [plantId], references: [id], onDelete: Restrict)
+
+  @@unique([userId, role, plantId])
+  @@index([plantId, role])
+  @@index([userId])
+  @@map("user_roles")
+}
+
+// ─────────────── Session ───────────────
+
+/// Session berbasis DB agar dapat dicabut (SPEC-0001 §6.3).
+/// `id` = SHA-256 dari token mentah yang disimpan di cookie.
+model Session {
+  id           String    @id // sha256(token)
+  userId       String
+  plantId      String?
+  ipAddress    String?
+  userAgent    String?
+  expiresAt    DateTime // batas idle (sliding)
+  absoluteEnds DateTime // batas absolut, tidak pernah diperpanjang
+  revokedAt    DateTime?
+  createdAt    DateTime  @default(now())
+
+  user  User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  plant Plant? @relation(fields: [plantId], references: [id])
+
+  @@index([userId, expiresAt])
+  @@index([expiresAt])
+  @@map("sessions")
+}
+
+// ─────────────── AuditLog (append-only) ───────────────
+
+/// Bersifat append-only: trigger PostgreSQL menolak UPDATE & DELETE.
+/// Lihat prisma/migrations/..._audit_append_only.
+model AuditLog {
+  id            BigInt      @id @default(autoincrement())
+  at            DateTime    @default(now())
+  actorId       String?
+  actorName     String? // snapshot, tetap terbaca walau user dihapus
+  plantId       String?
+  action        AuditAction
+  entity        String // "User", "Part", ...
+  entityId      String?
+  summaryKey    String // i18n key, mis. "audit.login.success"
+  summaryParams Json? // parameter untuk merender summary
+  metadata      Json? // diff / payload tambahan
+  ipAddress     String?
+  userAgent     String?
+
+  actor User?  @relation(fields: [actorId], references: [id], onDelete: SetNull)
+  plant Plant? @relation(fields: [plantId], references: [id])
+
+  @@index([at])
+  @@index([actorId, at])
+  @@index([entity, entityId])
+  @@index([action, at])
+  @@map("audit_logs")
+}
