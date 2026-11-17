@@ -67,8 +67,7 @@
     "groupQuality": "Quality Assurance",
     "ncr": "NG / NCR",
     "capa": "CAPA & Approval",
-    "supplierQuality": "Supplier Quality",
-    "masterData": "Master Data"
+    "supplierQuality": "Supplier Quality"
   },
   "dashboard": {
     "mantarisTitle": "Quality Management System (QMS)",
@@ -632,7 +631,24 @@
     "progress": "Progress",
     "ngRowsBlock": "{count} NG rows — fix before submitting",
     "print": "Print",
-    "draft": "Draft"
+    "draft": "Draft",
+    "workflowTitle": "Approval Workflow",
+    "workflowNoActions": "No approval actions available for your role and this status.",
+    "workflowComment": "Comment",
+    "workflowCommentPlaceholder": "Add review notes (required to reject/return)",
+    "workflowCommentRequired": "A comment is required to reject or return a document.",
+    "workflowStale": "The document status already changed. Reload and try again.",
+    "workflowForbidden": "You are not allowed to perform this action.",
+    "workflowFailed": "The action failed. Please try again.",
+    "workflowHistory": "Decision History",
+    "workflowNoHistory": "No decisions yet.",
+    "actionSubmit": "Submit",
+    "actionCheck": "Checked",
+    "actionApprove": "Approve",
+    "actionReject": "Reject",
+    "actionReturn": "Return",
+    "workflowIncomplete": "The check sheet is incomplete: fill required header fields and all items before submitting.",
+    "workflowValidation": "Data is incomplete or invalid."
   },
   "loginPage": {
     "headline": "Centralized quality control, from incoming to in-process.",

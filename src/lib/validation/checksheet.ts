@@ -80,3 +80,10 @@ export const checksheetListQuerySchema = z.object({
 export type ChecksheetCreateInput = z.infer<typeof checksheetCreateSchema>;
 export type ChecksheetUpdateInput = z.infer<typeof checksheetUpdateSchema>;
 export type ChecksheetListQuery = z.infer<typeof checksheetListQuerySchema>;
+
+export const checksheetTransitionSchema = z.object({
+  action: z.enum(["SUBMIT", "CHECK", "APPROVE", "REJECT", "RETURN"]),
+  comment: z.string().trim().max(2_000).optional(),
+});
+
+export type ChecksheetTransitionInput = z.infer<typeof checksheetTransitionSchema>;

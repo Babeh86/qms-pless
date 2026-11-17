@@ -99,6 +99,7 @@ model User {
   checkedChecksheets  Checksheet[]           @relation("ChecksheetChecker")
   approvedChecksheets Checksheet[]           @relation("ChecksheetApprover")
   uploadedAttachments ChecksheetAttachment[]
+  checksheetDecisions ChecksheetDecision[]
 
   @@index([isActive])
   @@map("users")
@@ -212,12 +213,42 @@ model Checksheet {
   checker     User?                  @relation("ChecksheetChecker", fields: [checkedById], references: [id], onDelete: SetNull)
   approver    User?                  @relation("ChecksheetApprover", fields: [approvedById], references: [id], onDelete: SetNull)
   attachments ChecksheetAttachment[]
+  decisions   ChecksheetDecision[]
 
   @@unique([createdById, idempotencyKey])
   @@index([plantId, status, inspectionDate])
   @@index([createdById, createdAt])
   @@index([formCode, inspectionDate])
   @@map("checksheets")
+}
+
+enum ChecksheetDecisionAction {
+  SUBMIT
+  CHECK
+  APPROVE
+  REJECT
+  RETURN
+}
+
+/// Immutable approval trail. Rows are append-only (see migration trigger).
+model ChecksheetDecision {
+  id           String                   @id @default(cuid())
+  checksheetId String
+  actorId      String
+  actorName    String
+  actorRole    RoleCode
+  action       ChecksheetDecisionAction
+  fromStatus   ChecksheetStatus
+  toStatus     ChecksheetStatus
+  comment      String?
+  at           DateTime                 @default(now())
+
+  checksheet Checksheet @relation(fields: [checksheetId], references: [id], onDelete: Cascade)
+  actor      User       @relation(fields: [actorId], references: [id], onDelete: Restrict)
+
+  @@index([checksheetId, at])
+  @@index([actorId, at])
+  @@map("checksheet_decisions")
 }
 
 /// Metadata only; binary content is held by a configured S3-compatible service.

@@ -17,6 +17,9 @@ import {
 import { requireSession } from "@/server/authz/guard";
 import { getChecksheet } from "@/server/checksheet/checksheet-service";
 import { listAttachments } from "@/server/checksheet/attachment-service";
+import { listDecisions } from "@/server/checksheet/workflow-service";
+import { allowedActions } from "@/lib/checksheet-workflow";
+import { WorkflowPanel } from "./workflow-panel";
 
 type ViewDocument = {
   id: string;
@@ -163,11 +166,19 @@ export default async function SheetDetailPage({
   const t = await getTranslations("form");
   const tIns = await getTranslations("inspection");
 
+  let workflow: {
+    actions: string[];
+    decisions: Awaited<ReturnType<typeof listDecisions>>;
+  } = { actions: [], decisions: [] };
   let attachments: StoredAttachmentView[] = [];
   if (doc.persisted) {
     try {
       const ctx = await requireSession();
       const rows = await listAttachments(ctx, doc.id);
+      workflow = {
+        actions: allowedActions(ctx.roles[0]?.role ?? "VIEWER", doc.status as never),
+        decisions: await listDecisions(ctx, doc.id),
+      };
       attachments = rows.map((row) => ({
         id: row.id,
         originalName: row.originalName,
@@ -329,6 +340,34 @@ export default async function SheetDetailPage({
           template={meta.template}
         />
       </div>
+
+      {doc.persisted ? (
+        <WorkflowPanel
+          checksheetId={doc.id}
+          status={doc.status}
+          actions={workflow.actions}
+          decisions={workflow.decisions}
+          labels={{
+            title: t("workflowTitle"),
+            noActions: t("workflowNoActions"),
+            comment: t("workflowComment"),
+            commentPlaceholder: t("workflowCommentPlaceholder"),
+            commentRequired: t("workflowCommentRequired"),
+            staleStatus: t("workflowStale"),
+            forbidden: t("workflowForbidden"),
+            failed: t("workflowFailed"),
+            incomplete: t("workflowIncomplete"),
+            validation: t("workflowValidation"),
+            history: t("workflowHistory"),
+            noHistory: t("workflowNoHistory"),
+            SUBMIT: t("actionSubmit"),
+            CHECK: t("actionCheck"),
+            APPROVE: t("actionApprove"),
+            REJECT: t("actionReject"),
+            RETURN: t("actionReturn"),
+          }}
+        />
+      ) : null}
 
       {doc.persisted ? (
         <StoredAttachments

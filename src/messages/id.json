@@ -67,8 +67,7 @@
     "groupQuality": "Quality Assurance",
     "ncr": "NG / NCR",
     "capa": "CAPA & Approval",
-    "supplierQuality": "Supplier Quality",
-    "masterData": "Master Data"
+    "supplierQuality": "Supplier Quality"
   },
   "dashboard": {
     "mantarisTitle": "Quality Management System (QMS)",
@@ -632,7 +631,24 @@
     "progress": "Progres",
     "ngRowsBlock": "{count} baris NG — perbaiki sebelum submit",
     "print": "Cetak",
-    "draft": "Draft"
+    "draft": "Draft",
+    "workflowTitle": "Alur Persetujuan",
+    "workflowNoActions": "Tidak ada aksi persetujuan untuk peran/status Anda saat ini.",
+    "workflowComment": "Komentar",
+    "workflowCommentPlaceholder": "Tuliskan catatan pemeriksaan (wajib untuk tolak/kembalikan)",
+    "workflowCommentRequired": "Komentar wajib diisi untuk menolak atau mengembalikan dokumen.",
+    "workflowStale": "Status dokumen sudah berubah. Muat ulang halaman lalu coba lagi.",
+    "workflowForbidden": "Anda tidak berwenang melakukan aksi ini.",
+    "workflowFailed": "Aksi gagal diproses. Coba lagi.",
+    "workflowHistory": "Riwayat Keputusan",
+    "workflowNoHistory": "Belum ada keputusan.",
+    "actionSubmit": "Submit",
+    "actionCheck": "Checked",
+    "actionApprove": "Approve",
+    "actionReject": "Tolak",
+    "actionReturn": "Kembalikan",
+    "workflowIncomplete": "Checksheet belum lengkap: isi header wajib dan seluruh item sebelum submit.",
+    "workflowValidation": "Data belum lengkap atau tidak valid."
   },
   "loginPage": {
     "headline": "Kendali mutu terpusat, dari incoming sampai in-process.",
