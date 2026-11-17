@@ -37,6 +37,7 @@ import { Input } from "@/components/ui/input";
 import { ProgressBar } from "@/components/ui/toolbar";
 import { cn } from "@/lib/utils/cn";
 import { ChecksheetAttachments } from "@/components/sheets/checksheet-attachments";
+import { useSaveDraft } from "@/components/sheets/use-save-draft";
 
 type CellValue = "OK" | "NG" | "NA";
 
@@ -63,6 +64,7 @@ export function PatrolForm({ template }: { template: ChecksheetTemplate }) {
   const [header, setHeader] = useState<HeaderValues>(EMPTY_HEADER);
   const [ngReport, setNgReport] = useState<{ slot: string; no: string } | null>(null);
   const [ngSaved, setNgSaved] = useState(false);
+  const { state: saveState, message: saveMessage, saveDraft } = useSaveDraft();
 
   const cellKey = (slot: string, no: string) => `${slot}|${no}`;
 
@@ -421,8 +423,31 @@ export function PatrolForm({ template }: { template: ChecksheetTemplate }) {
           </div>
 
           <div className="ml-auto flex items-center gap-2">
-            <Button variant="outline" size="md" iconLeft={<Save className="h-4 w-4" />}>
-              {t("saveDraft")}
+            <Button
+              variant="outline"
+              size="md"
+              iconLeft={<Save className="h-4 w-4" />}
+              disabled={saveState === "saving"}
+              onClick={() =>
+                void saveDraft({
+                  formCode: template.code,
+                  formName: template.title,
+                  templateRevision: "00",
+                  partNo: header.partNo ?? "",
+                  partName: header.partName ?? "",
+                  ...(header.customer ? { customerSnapshot: header.customer } : {}),
+                  lotNo: header.lotNo ?? "",
+                  inspectionDate: header.date ?? "",
+                  headerSnapshot: { ...header, pic },
+                  itemSnapshot: cells,
+                  remarksSnapshot: rowRemarks,
+                  totalItems: totalCells,
+                  ngItems: ngCount,
+                  finalJudgment: ngCount > 0 ? "NG" : filled === totalCells ? "OK" : null,
+                })
+              }
+            >
+              {saveState === "saving" ? t("savingDraft") : t("saveDraft")}
             </Button>
             <Button
               size="md"
@@ -432,6 +457,17 @@ export function PatrolForm({ template }: { template: ChecksheetTemplate }) {
               {t("submit")}
             </Button>
           </div>
+          {saveMessage ? (
+            <p
+              role="status"
+              className={
+                "text-[11px] font-medium " +
+                (saveState === "error" ? "text-danger-600" : "text-success-600")
+              }
+            >
+              {saveMessage}
+            </p>
+          ) : null}
         </div>
 
         {!canSubmit ? (

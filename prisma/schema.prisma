@@ -41,6 +41,20 @@ enum AuditAction {
   VIEW
 }
 
+enum ChecksheetStatus {
+  DRAFT
+  SUBMITTED
+  CHECKED
+  APPROVED
+  REJECTED
+  ARCHIVED
+}
+
+enum ChecksheetJudgment {
+  OK
+  NG
+}
+
 // ─────────────── Plant ───────────────
 
 /// Lokasi / pabrik. Scope utama seluruh data transaksi (FR-04).
@@ -55,9 +69,10 @@ model Plant {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  users     UserRole[]
-  sessions  Session[]
-  auditLogs AuditLog[]
+  users       UserRole[]
+  sessions    Session[]
+  auditLogs   AuditLog[]
+  checksheets Checksheet[]
 
   @@map("plants")
 }
@@ -77,9 +92,13 @@ model User {
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 
-  roles     UserRole[]
-  sessions  Session[]
-  auditLogs AuditLog[]
+  roles               UserRole[]
+  sessions            Session[]
+  auditLogs           AuditLog[]
+  createdChecksheets  Checksheet[]           @relation("ChecksheetCreator")
+  checkedChecksheets  Checksheet[]           @relation("ChecksheetChecker")
+  approvedChecksheets Checksheet[]           @relation("ChecksheetApprover")
+  uploadedAttachments ChecksheetAttachment[]
 
   @@index([isActive])
   @@map("users")
@@ -154,4 +173,68 @@ model AuditLog {
   @@index([entity, entityId])
   @@index([action, at])
   @@map("audit_logs")
+}
+
+/// Historical checksheet snapshot. JSON snapshots deliberately preserve the values
+/// used at inspection time, independently from mutable master records.
+model Checksheet {
+  id               String              @id @default(cuid())
+  number           String              @unique
+  formCode         String
+  formName         String
+  templateRevision String
+  plantId          String
+  createdById      String
+  checkedById      String?
+  approvedById     String?
+  partNoSnapshot   String
+  partNameSnapshot String
+  supplierSnapshot String?
+  customerSnapshot String?
+  lotNoSnapshot    String
+  inspectionDate   DateTime            @db.Date
+  headerSnapshot   Json
+  itemSnapshot     Json
+  remarksSnapshot  Json?
+  totalItems       Int                 @default(0)
+  ngItems          Int                 @default(0)
+  finalJudgment    ChecksheetJudgment?
+  status           ChecksheetStatus    @default(DRAFT)
+  idempotencyKey   String?
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+  submittedAt      DateTime?
+  checkedAt        DateTime?
+  approvedAt       DateTime?
+
+  plant       Plant                  @relation(fields: [plantId], references: [id], onDelete: Restrict)
+  creator     User                   @relation("ChecksheetCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  checker     User?                  @relation("ChecksheetChecker", fields: [checkedById], references: [id], onDelete: SetNull)
+  approver    User?                  @relation("ChecksheetApprover", fields: [approvedById], references: [id], onDelete: SetNull)
+  attachments ChecksheetAttachment[]
+
+  @@unique([createdById, idempotencyKey])
+  @@index([plantId, status, inspectionDate])
+  @@index([createdById, createdAt])
+  @@index([formCode, inspectionDate])
+  @@map("checksheets")
+}
+
+/// Metadata only; binary content is held by a configured S3-compatible service.
+model ChecksheetAttachment {
+  id             String   @id @default(cuid())
+  checksheetId   String
+  uploadedById   String
+  originalName   String
+  contentType    String
+  sizeBytes      BigInt
+  checksumSha256 String
+  objectKey      String   @unique
+  createdAt      DateTime @default(now())
+
+  checksheet Checksheet @relation(fields: [checksheetId], references: [id], onDelete: Cascade)
+  uploadedBy User       @relation(fields: [uploadedById], references: [id], onDelete: Restrict)
+
+  @@index([checksheetId, createdAt])
+  @@map("checksheet_attachments")
 }

@@ -18,6 +18,7 @@ import { Input } from "@/components/ui/input";
 import { ProgressBar } from "@/components/ui/toolbar";
 import { cn } from "@/lib/utils/cn";
 import { ChecksheetAttachments } from "@/components/sheets/checksheet-attachments";
+import { useSaveDraft } from "@/components/sheets/use-save-draft";
 
 type ValueMap = Record<string, string>;
 
@@ -45,6 +46,7 @@ export function IdsForm({ template }: { template: ChecksheetTemplate }) {
   const t = useTranslations("form");
   const [values, setValues] = useState<ValueMap>({});
   const [header, setHeader] = useState<HeaderValues>(EMPTY_HEADER);
+  const { state: saveState, message: saveMessage, saveDraft } = useSaveDraft();
 
   const cavities = Array.from({ length: IDS_CAVITY_COUNT }, (_, i) => i + 1);
   const rowJudgments: ("OK" | "NG" | null)[] = IDS_ROWS.map((row, idx) => rowJudge(values, idx, row));
@@ -295,13 +297,46 @@ export function IdsForm({ template }: { template: ChecksheetTemplate }) {
           </div>
 
           <div className="ml-auto flex items-center gap-2">
-            <Button variant="outline" size="md" iconLeft={<Save className="h-4 w-4" />}>
-              {t("saveDraft")}
+            <Button
+              variant="outline"
+              size="md"
+              iconLeft={<Save className="h-4 w-4" />}
+              disabled={saveState === "saving"}
+              onClick={() =>
+                void saveDraft({
+                  formCode: template.code,
+                  formName: template.title,
+                  templateRevision: "00",
+                  partNo: header.partNo ?? "",
+                  partName: header.partName ?? "",
+                  ...(header.customer ? { customerSnapshot: header.customer } : {}),
+                  lotNo: header.lotNo ?? "",
+                  inspectionDate: header.inspectionDate ?? "",
+                  headerSnapshot: header,
+                  itemSnapshot: values,
+                  totalItems: IDS_ROWS.length * IDS_CAVITY_COUNT,
+                  ngItems: ngRows,
+                  finalJudgment,
+                })
+              }
+            >
+              {saveState === "saving" ? t("savingDraft") : t("saveDraft")}
             </Button>
             <Button size="md" disabled={!canSubmit} iconLeft={<Send className="h-4 w-4" />}>
               {t("submit")}
             </Button>
           </div>
+          {saveMessage ? (
+            <p
+              role="status"
+              className={
+                "text-[11px] font-medium " +
+                (saveState === "error" ? "text-danger-600" : "text-success-600")
+              }
+            >
+              {saveMessage}
+            </p>
+          ) : null}
         </div>
         {!canSubmit ? (
           <div className="border-t border-warning-500/20 bg-warning-50 px-4 py-1.5 sm:px-6 lg:px-8">

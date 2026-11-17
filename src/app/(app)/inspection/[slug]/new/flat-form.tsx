@@ -25,6 +25,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { ProgressBar } from "@/components/ui/toolbar";
 import { cn } from "@/lib/utils/cn";
+import { useSaveDraft } from "@/components/sheets/use-save-draft";
 import { ChecksheetAttachments } from "@/components/sheets/checksheet-attachments";
 
 type ValueMap = Record<string, string>;
@@ -52,6 +53,7 @@ export function FlatSheetForm({ template }: { template: ChecksheetTemplate }) {
   const [values, setValues] = useState<ValueMap>({});
   const [header, setHeader] = useState<HeaderValues>(EMPTY_HEADER);
   const [submitted, setSubmitted] = useState(false);
+  const { state: saveState, message: saveMessage, saveDraft } = useSaveDraft();
 
   const allItems = useMemo(
     () =>
@@ -399,8 +401,31 @@ export function FlatSheetForm({ template }: { template: ChecksheetTemplate }) {
           </div>
 
           <div className="ml-auto flex items-center gap-2">
-            <Button variant="outline" size="md" iconLeft={<Save className="h-4 w-4" />} disabled={readOnly}>
-              {t("saveDraft")}
+            <Button
+              variant="outline"
+              size="md"
+              iconLeft={<Save className="h-4 w-4" />}
+              disabled={readOnly || saveState === "saving"}
+              onClick={() =>
+                void saveDraft({
+                  formCode: template.code,
+                  formName: template.title,
+                  templateRevision: "00",
+                  partNo: header.partNo ?? "",
+                  partName: header.partName ?? "",
+                  ...(header.supplier ? { supplierSnapshot: header.supplier } : {}),
+                  ...(header.customer ? { customerSnapshot: header.customer } : {}),
+                  lotNo: header.lotNo ?? "",
+                  inspectionDate: header.inspectionDate ?? "",
+                  headerSnapshot: header,
+                  itemSnapshot: values,
+                  totalItems: allItems.length,
+                  ngItems: ngCount,
+                  finalJudgment,
+                })
+              }
+            >
+              {saveState === "saving" ? t("savingDraft") : t("saveDraft")}
             </Button>
             <Button
               size="md"
@@ -411,6 +436,17 @@ export function FlatSheetForm({ template }: { template: ChecksheetTemplate }) {
               {submitted ? t("submitted") : t("submit")}
             </Button>
           </div>
+          {saveMessage ? (
+            <p
+              role="status"
+              className={
+                "text-[11px] font-medium " +
+                (saveState === "error" ? "text-danger-600" : "text-success-600")
+              }
+            >
+              {saveMessage}
+            </p>
+          ) : null}
         </div>
 
         {!isComplete && !submitted ? (
