@@ -475,6 +475,8 @@
     "capturePhoto": "Ambil Foto",
     "cameraPhoto": "Foto kamera",
     "technicalFile": "File teknik",
+    "noStoredAttachments": "Belum ada lampiran tersimpan.",
+    "downloadAttachment": "Unduh lampiran",
     "removeAttachment": "Hapus lampiran {name}",
     "attachmentPending": "Menunggu unggah",
     "attachmentUploading": "Mengunggah...",

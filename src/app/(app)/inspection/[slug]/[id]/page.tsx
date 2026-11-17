@@ -8,6 +8,7 @@ import { Badge, judgmentTone, statusTone } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PageHeader } from "@/components/ui/page-header";
 import { DocumentActions } from "./document-actions";
+import { StoredAttachments, type StoredAttachmentView } from "./stored-attachments";
 import {
   ChecksheetRecord,
   checksheetHeaderSnapshot,
@@ -15,6 +16,7 @@ import {
 } from "./checksheet-record";
 import { requireSession } from "@/server/authz/guard";
 import { getChecksheet } from "@/server/checksheet/checksheet-service";
+import { listAttachments } from "@/server/checksheet/attachment-service";
 
 type ViewDocument = {
   id: string;
@@ -38,6 +40,8 @@ type ViewDocument = {
   headerSnapshot?: Record<string, string>;
   itemSnapshot?: Record<string, string>;
   remarksSnapshot?: Record<string, string>;
+  /** Only populated for persisted documents. */
+  persisted?: boolean;
 };
 
 /**
@@ -69,6 +73,7 @@ async function loadDocument(id: string, formCode: string): Promise<ViewDocument 
         inspectionDate: persisted.inspectionDate.toISOString().slice(0, 10),
         formCode: persisted.formCode,
         formName: persisted.formName,
+        persisted: true,
         headerSnapshot: persisted.headerSnapshot as Record<string, string>,
         itemSnapshot: persisted.itemSnapshot as Record<string, string>,
         ...(persisted.remarksSnapshot
@@ -157,6 +162,23 @@ export default async function SheetDetailPage({
 
   const t = await getTranslations("form");
   const tIns = await getTranslations("inspection");
+
+  let attachments: StoredAttachmentView[] = [];
+  if (doc.persisted) {
+    try {
+      const ctx = await requireSession();
+      const rows = await listAttachments(ctx, doc.id);
+      attachments = rows.map((row) => ({
+        id: row.id,
+        originalName: row.originalName,
+        contentType: row.contentType,
+        sizeBytes: row.sizeBytes,
+        createdAt: row.createdAt,
+      }));
+    } catch {
+      attachments = [];
+    }
+  }
 
   const part = parts.find((p) => p.partNo === doc.partNo);
   const material = part ? materialById(part.materialId) : undefined;
@@ -271,8 +293,7 @@ export default async function SheetDetailPage({
       </Card>
 
       <div className="space-y-2">
-        <div className="flex flex-wrap items-end justify-between gap-2 px-1">
-          <div>
+        <div className="flex flex-wrap items-end justify-between gap-2 px-1">          <div>
             <h2 className="text-sm font-bold text-ink-900">{meta.template.title}</h2>
             <p className="mt-0.5 text-[10px] text-ink-500">{t("readOnly")}</p>
           </div>
@@ -308,6 +329,18 @@ export default async function SheetDetailPage({
           template={meta.template}
         />
       </div>
+
+      {doc.persisted ? (
+        <StoredAttachments
+          checksheetId={doc.id}
+          items={attachments}
+          labels={{
+            title: t("attachmentsTitle"),
+            empty: t("noStoredAttachments"),
+            download: t("downloadAttachment"),
+          }}
+        />
+      ) : null}
 
       {/* Ringkasan item */}
       <div className="grid gap-4 sm:grid-cols-3">

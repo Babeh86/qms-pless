@@ -475,6 +475,8 @@
     "capturePhoto": "Capture Photo",
     "cameraPhoto": "Camera photo",
     "technicalFile": "Technical file",
+    "noStoredAttachments": "No stored attachments yet.",
+    "downloadAttachment": "Download attachment",
     "removeAttachment": "Remove attachment {name}",
     "attachmentPending": "Pending upload",
     "attachmentUploading": "Uploading...",
