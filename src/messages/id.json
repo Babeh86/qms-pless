@@ -849,5 +849,14 @@
     "actClose": "Tutup NCR",
     "actReopen": "Buka ulang",
     "actCancel": "Batalkan"
+  },
+  "offline": {
+    "offline": "Offline",
+    "pending": "{count} draft menunggu sinkronisasi",
+    "syncing": "Menyinkronkan draft...",
+    "failed": "{count} draft gagal disinkronkan",
+    "retry": "Sinkronkan",
+    "syncedAt": "Tersinkron {time}",
+    "templatesAvailable": "Template aktif tersedia offline"
   }
 }

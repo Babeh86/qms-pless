@@ -65,6 +65,8 @@ export const checksheetUpdateSchema = z
     finalJudgment: z.enum(["OK", "NG"]).nullable().optional(),
     inspectionDate: dateOnly.optional(),
     lotNo: z.string().trim().min(1).max(80).optional(),
+    /** Client edit timestamp; used for server-side latest-edit-wins.**/
+    clientUpdatedAt: z.string().datetime().optional(),
   })
   .refine((value) => Object.keys(value).length > 0, {
     message: "Minimal satu field harus diubah",

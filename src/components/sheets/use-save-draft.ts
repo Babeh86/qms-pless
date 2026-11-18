@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { useOfflineSync } from "@/components/offline/offline-sync-provider";
 
 export interface DraftPayload {
   formCode: string;
@@ -31,6 +32,7 @@ export function useSaveDraft() {
   const [state, setState] = useState<DraftSaveState>("idle");
   const [message, setMessage] = useState<string | null>(null);
   const [savedId, setSavedId] = useState<string | null>(null);
+  const { online, enqueueDraft } = useOfflineSync();
   const idempotencyKey = useRef(
     typeof crypto === "undefined" ? "draft-session" : crypto.randomUUID(),
   );
@@ -38,6 +40,13 @@ export function useSaveDraft() {
   async function saveDraft(payload: DraftPayload): Promise<string | null> {
     setState("saving");
     setMessage(null);
+
+    if (!online) {
+      enqueueDraft(idempotencyKey.current, payload);
+      setState("saved");
+      setMessage("Draft disimpan di perangkat dan akan disinkronkan otomatis.");
+      return null;
+    }
 
     try {
       const response = await fetch(
@@ -76,8 +85,9 @@ export function useSaveDraft() {
       setMessage("Draft tersimpan di server.");
       return record.id;
     } catch {
-      setState("error");
-      setMessage("Koneksi gagal. Draft belum tersimpan.");
+      enqueueDraft(idempotencyKey.current, payload);
+      setState("saved");
+      setMessage("Koneksi terputus. Draft disimpan di perangkat dan akan disinkronkan otomatis.");
       return null;
     }
   }

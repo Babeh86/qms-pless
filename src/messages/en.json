@@ -849,5 +849,14 @@
     "actClose": "Close NCR",
     "actReopen": "Reopen",
     "actCancel": "Cancel NCR"
+  },
+  "offline": {
+    "offline": "Offline",
+    "pending": "{count} draft(s) waiting to sync",
+    "syncing": "Syncing drafts...",
+    "failed": "{count} draft(s) failed to sync",
+    "retry": "Sync now",
+    "syncedAt": "Synced {time}",
+    "templatesAvailable": "Active templates available offline"
   }
 }

@@ -116,6 +116,26 @@ describe("checksheet persistence — integration", () => {
     expect(updated.ngItems).toBe(2);
   });
 
+  it("menolak update lokal yang lebih lama (latest edit wins di server)", async () => {
+    const ctx = await inspectorContext("inspector_conflict");
+    const created = await createChecksheet(ctx, payload());
+
+    // A stale client edit must not overwrite the newer stored version.
+    await expect(
+      updateChecksheetDraft(ctx, created.id, {
+        itemSnapshot: { "flat:0:0": "NG" },
+        clientUpdatedAt: "2020-01-01T00:00:00.000Z",
+      }),
+    ).rejects.toThrow(/lebih baru/);
+
+    // The same edit from a newer client is accepted.
+    const accepted = await updateChecksheetDraft(ctx, created.id, {
+      itemSnapshot: { "flat:0:0": "NG" },
+      clientUpdatedAt: new Date(Date.now() + 60_000).toISOString(),
+    });
+    expect(accepted.itemSnapshot).toEqual({ "flat:0:0": "NG" });
+  });
+
   it("menolak mengubah dokumen yang sudah tidak berstatus draft", async () => {
     const ctx = await inspectorContext("inspector_submitted");
     const created = await createChecksheet(ctx, payload());

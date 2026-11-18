@@ -22,6 +22,7 @@ const eslintConfig = [
       "playwright-report/**",
       "test-results/**",
       "coverage/**",
+      "public/sw.js",
     ],
   },
   {

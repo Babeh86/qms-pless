@@ -1,6 +1,6 @@
 import type { Checksheet, ChecksheetStatus, Prisma } from "@prisma/client";
 import { prisma } from "@/server/db/client";
-import { ForbiddenError, type AuthzContext } from "@/server/authz/guard";
+import { AppError, ForbiddenError, type AuthzContext } from "@/server/authz/guard";
 import { writeAudit } from "@/server/audit/audit";
 import type {
   ChecksheetCreateInput,
@@ -178,6 +178,18 @@ export async function updateChecksheetDraft(
     throw new ForbiddenError("Hanya pemilik dokumen yang dapat mengubah draft");
   }
   if (row.status !== "DRAFT") throw new ForbiddenError("Hanya draft yang dapat diubah");
+
+  // Latest edit wins: refuse an older client edit instead of clobbering newer data.
+  if (input.clientUpdatedAt) {
+    const clientTime = Date.parse(input.clientUpdatedAt);
+    if (!Number.isNaN(clientTime) && row.updatedAt.getTime() > clientTime) {
+      throw new AppError(
+        "VALIDATION",
+        "Server memiliki versi yang lebih baru; perubahan lokal tidak ditimpa",
+        409,
+      );
+    }
+  }
 
   const data: Prisma.ChecksheetUpdateInput = {
     ...(input.headerSnapshot
