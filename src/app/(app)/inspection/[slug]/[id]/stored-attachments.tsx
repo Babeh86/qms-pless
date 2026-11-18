@@ -62,7 +62,7 @@ export function StoredAttachments({
                   </span>
                 </span>
                 <a
-                  href={`/api/checksheets/${checksheetId}/attachments/${item.id}`}
+                  href={`/api/checksheets/${checksheetId}/attachments/${item.id}/content`}
                   target="_blank"
                   rel="noopener noreferrer"
                   aria-label={`${labels.download}: ${item.originalName}`}

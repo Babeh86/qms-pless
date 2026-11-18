@@ -1,4 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
+import { mkdir, readFile, unlink, writeFile } from "node:fs/promises";
+import path from "node:path";
 import {
   DeleteObjectCommand,
   GetObjectCommand,
@@ -8,14 +10,19 @@ import {
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
 /**
- * Object storage adapter (S3-compatible).
+ * Attachment object storage.
  *
- * Configuration comes from environment variables only. When unconfigured the
- * adapter fails closed: callers must not delete/mark attachments persisted if
- * the binary was never durably stored.
+ * Drivers:
+ *  - `s3`: any S3-compatible service, configured from environment variables.
+ *  - `local`: development only, files under `.uploads/`. Production refuses to
+ *    start without S3 so binaries are never silently kept on an ephemeral disk.
+ *
+ * Everything fails closed: callers must not record attachment metadata unless the
+ * binary was durably written.
  */
 
 const MAX_UPLOAD_BYTES = 30 * 1024 * 1024;
+const LOCAL_ROOT = path.join(process.cwd(), ".uploads");
 
 /** Extension allowlist; content type is verified separately at the API boundary. */
 export const ALLOWED_ATTACHMENT_EXTENSIONS = new Set([
@@ -46,16 +53,21 @@ export class StorageNotConfiguredError extends Error {
   }
 }
 
+export type StorageDriver = "s3" | "local";
+
 export interface StorageConfig {
-  endpoint: string;
-  region: string;
-  bucket: string;
-  accessKeyId: string;
-  secretAccessKey: string;
-  forcePathStyle: boolean;
+  driver: StorageDriver;
+  endpoint?: string;
+  region?: string;
+  bucket?: string;
+  accessKeyId?: string;
+  secretAccessKey?: string;
+  forcePathStyle?: boolean;
 }
 
-function readConfig(): StorageConfig | null {
+function readConfig(): StorageConfig {
+  const forced = process.env.STORAGE_DRIVER;
+
   const {
     S3_ENDPOINT,
     S3_REGION,
@@ -65,9 +77,19 @@ function readConfig(): StorageConfig | null {
     S3_FORCE_PATH_STYLE,
   } = process.env;
 
-  if (!S3_ENDPOINT || !S3_BUCKET || !S3_ACCESS_KEY_ID || !S3_SECRET_ACCESS_KEY) return null;
+  const hasS3 = Boolean(
+    S3_ENDPOINT && S3_BUCKET && S3_ACCESS_KEY_ID && S3_SECRET_ACCESS_KEY,
+  );
+
+  if (forced === "local" || (!hasS3 && process.env.NODE_ENV !== "production")) {
+    return { driver: "local" };
+  }
+
+  if (forced === "s3" && !hasS3) throw new StorageNotConfiguredError();
+  if (!hasS3) throw new StorageNotConfiguredError();
 
   return {
+    driver: "s3",
     endpoint: S3_ENDPOINT,
     region: S3_REGION || "us-east-1",
     bucket: S3_BUCKET,
@@ -77,29 +99,40 @@ function readConfig(): StorageConfig | null {
   };
 }
 
-let client: { config: StorageConfig; s3: S3Client } | null = null;
+let cached: { config: StorageConfig; s3: S3Client | null } | null = null;
 
-function getClient(): { config: StorageConfig; s3: S3Client } {
-  if (client) return client;
+function getStorage(): { config: StorageConfig; s3: S3Client | null } {
+  if (cached) return cached;
   const config = readConfig();
-  if (!config) throw new StorageNotConfiguredError();
-  client = {
-    config,
-    s3: new S3Client({
-      endpoint: config.endpoint,
-      region: config.region,
-      forcePathStyle: config.forcePathStyle,
-      credentials: {
-        accessKeyId: config.accessKeyId,
-        secretAccessKey: config.secretAccessKey,
-      },
-    }),
-  };
-  return client;
+
+  const s3 =
+    config.driver === "s3"
+      ? new S3Client({
+          endpoint: config.endpoint,
+          region: config.region,
+          forcePathStyle: config.forcePathStyle,
+          credentials: {
+            accessKeyId: config.accessKeyId as string,
+            secretAccessKey: config.secretAccessKey as string,
+          },
+        })
+      : null;
+
+  cached = { config, s3 };
+  return cached;
+}
+
+/** For tests/tools that change environment variables at runtime. */
+export function resetStorageForTests(): void {
+  cached = null;
+}
+
+export function currentDriver(): StorageDriver {
+  return getStorage().config.driver;
 }
 
 export function assertStorageConfigured(): void {
-  getClient();
+  getStorage();
 }
 
 export function extensionOf(name: string): string {
@@ -121,8 +154,24 @@ export interface StoredAttachment {
   sizeBytes: number;
 }
 
+/**
+ * Object keys are generated server-side (never derived from client input) and are
+ * validated again before any local filesystem access.
+ */
+function isValidObjectKey(key: string): boolean {
+  return /^checksheets\/[A-Za-z0-9_-]+\/[A-Za-z0-9-]+\.[a-z0-9]+$/.test(key);
+}
+
+function localPathFor(objectKey: string): string {
+  if (!isValidObjectKey(objectKey)) throw new Error("Object key tidak valid");
+  const resolved = path.resolve(LOCAL_ROOT, objectKey);
+  const root = path.resolve(LOCAL_ROOT) + path.sep;
+  if (!resolved.startsWith(root)) throw new Error("Object key di luar direktori storage");
+  return resolved;
+}
+
 export async function putAttachment(input: PutAttachmentInput): Promise<StoredAttachment> {
-  const { config, s3 } = getClient();
+  const { config, s3 } = getStorage();
 
   if (input.bytes.byteLength > MAX_UPLOAD_BYTES) {
     throw new Error("Ukuran lampiran melebihi batas 30 MB");
@@ -131,7 +180,14 @@ export async function putAttachment(input: PutAttachmentInput): Promise<StoredAt
   const checksumSha256 = createHash("sha256").update(input.bytes).digest("hex");
   const objectKey = `checksheets/${input.checksheetId}/${randomUUID()}${extensionOf(input.fileName)}`;
 
-  await s3.send(
+  if (config.driver === "local") {
+    const target = localPathFor(objectKey);
+    await mkdir(path.dirname(target), { recursive: true });
+    await writeFile(target, input.bytes, { flag: "wx" });
+    return { objectKey, checksumSha256, sizeBytes: input.bytes.byteLength };
+  }
+
+  await (s3 as S3Client).send(
     new PutObjectCommand({
       Bucket: config.bucket,
       Key: objectKey,
@@ -145,16 +201,38 @@ export async function putAttachment(input: PutAttachmentInput): Promise<StoredAt
   return { objectKey, checksumSha256, sizeBytes: input.bytes.byteLength };
 }
 
-export async function getAttachmentUrl(objectKey: string, expiresInSeconds = 300): Promise<string> {
-  const { config, s3 } = getClient();
-  return getSignedUrl(s3, new GetObjectCommand({ Bucket: config.bucket, Key: objectKey }), {
-    expiresIn: expiresInSeconds,
-  });
+/** S3 signed URL, or null when the local driver must be served by an API route. */
+export async function getSignedAttachmentUrl(
+  objectKey: string,
+  expiresInSeconds = 300,
+): Promise<string | null> {
+  const { config, s3 } = getStorage();
+  if (config.driver === "local") return null;
+
+  return getSignedUrl(
+    s3 as S3Client,
+    new GetObjectCommand({ Bucket: config.bucket, Key: objectKey }),
+    { expiresIn: expiresInSeconds },
+  );
+}
+
+export async function readLocalAttachment(objectKey: string): Promise<Buffer> {
+  const { config } = getStorage();
+  if (config.driver !== "local") throw new Error("Driver storage bukan lokal");
+  return readFile(localPathFor(objectKey));
 }
 
 export async function deleteAttachment(objectKey: string): Promise<void> {
-  const { config, s3 } = getClient();
-  await s3.send(new DeleteObjectCommand({ Bucket: config.bucket, Key: objectKey }));
+  const { config, s3 } = getStorage();
+
+  if (config.driver === "local") {
+    await unlink(localPathFor(objectKey)).catch(() => undefined);
+    return;
+  }
+
+  await (s3 as S3Client).send(
+    new DeleteObjectCommand({ Bucket: config.bucket, Key: objectKey }),
+  );
 }
 
 export const ATTACHMENT_MAX_BYTES = MAX_UPLOAD_BYTES;

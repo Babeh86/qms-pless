@@ -3,7 +3,7 @@ import { prisma } from "@/server/db/client";
 import { AppError, type AuthzContext } from "@/server/authz/guard";
 import { writeAudit } from "@/server/audit/audit";
 import {
-  getAttachmentUrl,
+  getSignedAttachmentUrl,
   putAttachment,
   StorageNotConfiguredError,
 } from "@/server/storage/object-storage";
@@ -126,7 +126,11 @@ export async function getAttachmentDownloadUrl(
   if (!row) throw new AppError("NOT_FOUND", "Lampiran tidak ditemukan", 404);
 
   try {
-    return { url: await getAttachmentUrl(row.objectKey), fileName: row.originalName };
+    const signed = await getSignedAttachmentUrl(row.objectKey);
+    return {
+      url: signed ?? `/api/checksheets/${checksheetId}/attachments/${attachmentId}/content`,
+      fileName: row.originalName,
+    };
   } catch (error) {
     if (error instanceof StorageNotConfiguredError) throw new StorageUnavailableError();
     throw error;

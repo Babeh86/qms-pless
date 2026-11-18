@@ -32,6 +32,9 @@ yarn-error.log*
 /dev.log
 /prod.log
 
+# local attachment storage (dev driver)
+/.uploads/
+
 # local browser test captures
 /shots/
 /test-results/
