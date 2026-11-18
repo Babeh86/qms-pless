@@ -198,7 +198,12 @@
     },
     "dist": {
       "title": "Distribution by Form"
-    }
+    },
+    "approved": "approved",
+    "fromDatabase": "from database",
+    "openRegister": "open register",
+    "submittedLabel": "submitted",
+    "waitingForApproval": "awaiting approval"
   },
   "profile": {
     "title": "My Profile",

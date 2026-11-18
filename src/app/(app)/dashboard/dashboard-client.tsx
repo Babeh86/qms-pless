@@ -13,10 +13,33 @@ import type { Checksheet } from "@/lib/mock/types";
 import { Badge, judgmentTone, statusTone } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 
+export interface DashboardMetrics {
+  totalInspections: number;
+  passRate: number;
+  ngCount: number;
+  pendingApproval: number;
+  openNcr: number;
+  byStatus: { DRAFT: number; SUBMITTED: number; CHECKED: number; APPROVED: number; REJECTED: number };
+  openActions: number;
+  overdueNcr: number;
+}
+
 interface Props {
-  checksheets: Checksheet[];
+  metrics: DashboardMetrics | null;
+  recent?: Checksheet[];
   counts: { partners: number; materials: number; parts: number; machines: number };
 }
+
+const EMPTY_METRICS: DashboardMetrics = {
+  totalInspections: 0,
+  passRate: 0,
+  ngCount: 0,
+  pendingApproval: 0,
+  openNcr: 0,
+  byStatus: { DRAFT: 0, SUBMITTED: 0, CHECKED: 0, APPROVED: 0, REJECTED: 0 },
+  openActions: 0,
+  overdueNcr: 0,
+};
 
 const trend = [
   { day: "01", total: 590, ok: 578 }, { day: "02", total: 660, ok: 648 },
@@ -112,20 +135,29 @@ function TrendChart() {
   </div>;
 }
 
-export function DashboardClient({ checksheets }: Props) {
+export function DashboardClient({ metrics: rawMetrics, recent: recentRows = [] }: Props) {
+  const metrics = rawMetrics ?? EMPTY_METRICS;
   const t = useTranslations("dashboard");
   const router = useRouter();
   const [period, setPeriod] = useState("Last 30 days");
   const [query, setQuery] = useState("");
-  const filtered = useMemo(() => checksheets.filter((cs) => `${cs.number} ${cs.partNo} ${cs.partName} ${cs.inspectorName}`.toLowerCase().includes(query.toLowerCase())), [checksheets, query]);
-  const recent = [...filtered].sort((a, b) => b.inspectionDate.localeCompare(a.inspectionDate)).slice(0, 5);
+  const filtered = useMemo(
+    () =>
+      recentRows.filter((cs) =>
+        `${cs.number} ${cs.partNo} ${cs.partName} ${cs.inspectorName}`
+          .toLowerCase()
+          .includes(query.toLowerCase()),
+      ),
+    [recentRows, query],
+  );
+  const recent = [...(recentRows.length > 0 ? recentRows : filtered)].sort((a, b) => b.inspectionDate.localeCompare(a.inspectionDate)).slice(0, 5);
   const routeByForm: Record<string, string> = { "CS-01": "/inspection/cs-01", "CS-02": "/inspection/cs-02", "CS-03": "/inspection/cs-03", "CS-04": "/inspection/cs-04", "CS-05": "/inspection/cs-05", "CS-06": "/inspection/cs-06" };
   const kpis = [
-    { label: t("stats.total"), value: "5,840", change: "+12.8%", icon: ClipboardCheck, tone: "blue", hint: t("comparison"), href: "/inspection" },
-    { label: t("passRate"), value: "98.2%", change: "+0.6%", icon: CheckCircle2, tone: "green", hint: t("comparison"), href: "/reports" },
-    { label: "NG (Not Good)", value: "105", change: "−8.4%", icon: AlertTriangle, tone: "red", hint: t("comparison"), href: "/reports?view=ng#ng-register" },
-    { label: t("stats.pending"), value: "12", change: `3 ${t("urgent")}`, icon: Clock3, tone: "orange", hint: t("awaitingReview"), href: "/approval" },
-    { label: "Open NCR / CAPA", value: "4", change: `2 ${t("overdue")}`, icon: ShieldAlert, tone: "violet", hint: t("openActions"), href: "/reports?view=ng#ng-register" },
+    { label: t("stats.total"), value: metrics.totalInspections.toLocaleString("id-ID"), change: `${metrics.byStatus.APPROVED} ${t("approved")}`, icon: ClipboardCheck, tone: "blue", hint: t("fromDatabase"), href: "/inspection" },
+    { label: t("passRate"), value: `${metrics.passRate}%`, change: `${metrics.ngCount} NG`, icon: CheckCircle2, tone: "green", hint: t("fromDatabase"), href: "/reports" },
+    { label: "NG (Not Good)", value: String(metrics.ngCount), change: t("openRegister"), icon: AlertTriangle, tone: "red", hint: t("fromDatabase"), href: "/reports?view=ng#ng-register" },
+    { label: t("stats.pending"), value: String(metrics.pendingApproval), change: `${metrics.byStatus.SUBMITTED} ${t("submittedLabel")}`, icon: Clock3, tone: "orange", hint: t("waitingForApproval"), href: "/approval" },
+    { label: "Open NCR / CAPA", value: String(metrics.openNcr), change: `${metrics.overdueNcr} ${t("overdue")}`, icon: ShieldAlert, tone: "violet", hint: t("openActions"), href: "/ncr" },
   ];
   const toneClass: Record<string, string> = { blue: "bg-blue-50 text-blue-600", green: "bg-emerald-50 text-emerald-600", red: "bg-rose-50 text-rose-600", orange: "bg-orange-50 text-orange-600", violet: "bg-violet-50 text-violet-600" };
 
@@ -145,7 +177,7 @@ export function DashboardClient({ checksheets }: Props) {
     </div>
 
     <div className="grid gap-4 xl:grid-cols-12">
-      <ClickableCard href="/reports?view=ng#ng-register" className="border-slate-200/80 shadow-[0_2px_10px_rgba(15,39,77,0.04)] xl:col-span-4"><CardContent className="p-4"><PanelTitle title={t("defectTitle")} detail={t("defectDetail")}/><div className="space-y-3">{defects.map((d) => <div key={d.nameKey}><div className="mb-1 flex justify-between gap-2 text-[9px]"><span className="truncate text-slate-600">{t(d.nameKey)}</span><strong className="text-slate-700">{d.value}</strong></div><div className="h-1.5 overflow-hidden rounded-full bg-slate-100"><div className={`h-full rounded-full ${d.color}`} style={{width:`${d.value/38*100}%`}}/></div></div>)}</div></CardContent></ClickableCard>
+      <ClickableCard href="/ncr" className="border-slate-200/80 shadow-[0_2px_10px_rgba(15,39,77,0.04)] xl:col-span-4"><CardContent className="p-4"><PanelTitle title={t("defectTitle")} detail={t("defectDetail")}/><div className="space-y-3">{defects.map((d) => <div key={d.nameKey}><div className="mb-1 flex justify-between gap-2 text-[9px]"><span className="truncate text-slate-600">{t(d.nameKey)}</span><strong className="text-slate-700">{d.value}</strong></div><div className="h-1.5 overflow-hidden rounded-full bg-slate-100"><div className={`h-full rounded-full ${d.color}`} style={{width:`${d.value/38*100}%`}}/></div></div>)}</div></CardContent></ClickableCard>
       <ClickableCard href="/inspection" className="border-slate-200/80 shadow-[0_2px_10px_rgba(15,39,77,0.04)] xl:col-span-4"><CardContent className="p-4"><PanelTitle title={t("typeTitle")} detail={t("typeDetail")}/><div className="space-y-4 pt-1">{[{name:t("inspectionTypes.incoming"),rate:99.1,count:"2,140 lots",color:"bg-blue-600"},{name:t("inspectionTypes.patrol"),rate:97.8,count:"2,890 checks",color:"bg-sky-500"},{name:t("inspectionTypes.final"),rate:98.4,count:"810 checks",color:"bg-cyan-500"}].map((x) => <div key={x.name}><div className="mb-1.5 flex justify-between text-[10px]"><span className="font-medium text-slate-700">{x.name}</span><span className="font-bold text-slate-800">{x.rate}%</span></div><div className="h-2 rounded-full bg-slate-100"><div className={`h-2 rounded-full ${x.color}`} style={{width:`${x.rate}%`}}/></div><p className="mt-1 text-[9px] text-slate-400">{x.count}</p></div>)}</div></CardContent></ClickableCard>
       <ClickableCard href="/approval" className="border-slate-200/80 shadow-[0_2px_10px_rgba(15,39,77,0.04)] xl:col-span-4"><CardContent className="p-4"><PanelTitle title={t("statusTitle")} detail={t("statusDetail")}/><div className="flex items-center justify-center gap-4"><Donut segments={[{value:66,color:"#2563eb"},{value:19,color:"#38bdf8"},{value:11,color:"#f59e0b"},{value:4,color:"#cbd5e1"}]} center="1,284" label={t("docCount")}/><div className="space-y-2.5">{[{label:t("completed"),value:"846",color:"bg-blue-600"},{label:t("inProgress"),value:"244",color:"bg-sky-400"},{label:t("stats.pending"),value:"142",color:"bg-orange-400"},{label:t("onHold"),value:"52",color:"bg-slate-300"}].map((x)=><p key={x.label} className="flex min-w-[112px] items-center gap-2 text-[9px] text-slate-500"><i className={`h-2 w-2 rounded-full ${x.color}`}/>{x.label}<strong className="ml-auto text-slate-700">{x.value}</strong></p>)}</div></div></CardContent></ClickableCard>
     </div>
