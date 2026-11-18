@@ -7,6 +7,7 @@ import { Topbar } from "@/components/layout/topbar";
 import type { Locale } from "@/server/i18n/config";
 import { OfflineSyncProvider } from "@/components/offline/offline-sync-provider";
 import { OfflineStatusBanner } from "@/components/offline/offline-status-banner";
+import { getNotifications } from "@/server/notifications/notifications";
 
 export default async function AppLayout({
   children,
@@ -17,6 +18,7 @@ export default async function AppLayout({
   const locale = (await getLocale()) as Locale;
   const permissions = Array.from(permissionsOf(session));
   const roles = Array.from(new Set(session.roles.map((r) => r.role)));
+  const notifications = await getNotifications(session).catch(() => []);
 
   return (
     <OfflineSyncProvider userId={session.userId}>
@@ -28,6 +30,7 @@ export default async function AppLayout({
           roles={roles}
           plantName="KARAWANG"
           currentLocale={locale}
+          notifications={notifications}
         />
         <main className="mx-auto w-full max-w-[1760px] flex-1 px-4 py-5 sm:px-6 lg:px-8 xl:px-9">
           <OfflineStatusBanner />

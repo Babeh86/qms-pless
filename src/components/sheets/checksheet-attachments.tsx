@@ -4,6 +4,8 @@ import { useEffect, useRef, useState } from "react";
 import { Camera, FileImage, FileText, ImagePlus, Trash2, Upload, X } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { Card, CardContent } from "@/components/ui/card";
+import { useOfflineSync } from "@/components/offline/offline-sync-provider";
+import { queueAttachment } from "@/lib/offline/attachment-queue";
 
 const ACCEPTED = ".dwg,.dxf,.dwt,.dws,.jpg,.jpeg,.png,.webp,.bmp,.tif,.tiff,.pdf,.step,.stp,.iges,.igs,.stl,.svg,.ai,.eps";
 const MAX_FILE_SIZE = 30 * 1024 * 1024;
@@ -13,12 +15,16 @@ type Attachment = { id: string; file: File; previewUrl?: string; source: "file" 
 
 export function ChecksheetAttachments({
   checksheetId,
+  draftKey,
   onBeforeUpload,
 }: {
   checksheetId?: string | null;
+  /** Idempotency key of the local draft, used to queue files while offline. */
+  draftKey?: string;
   /** Persists the draft first so the attachment is linked to a real document. */
   onBeforeUpload?: () => Promise<string | null>;
 } = {}) {
+  const { online } = useOfflineSync();
   const [uploadState, setUploadState] = useState<Record<string, "pending" | "uploading" | "stored" | "failed">>({});
   const t = useTranslations("form");
   const inputRef = useRef<HTMLInputElement>(null);
@@ -66,6 +72,19 @@ export function ChecksheetAttachments({
   }
 
   async function uploadAll(attachments: Attachment[]) {
+    if (!online && draftKey) {
+      for (const attachment of attachments) {
+        try {
+          await queueAttachment(draftKey, attachment.file);
+          setUploadState((current) => ({ ...current, [attachment.id]: "pending" }));
+        } catch {
+          setUploadState((current) => ({ ...current, [attachment.id]: "failed" }));
+          setError(t("attachmentUploadFailed", { name: attachment.file.name }));
+        }
+      }
+      return;
+    }
+
     let targetId = checksheetId ?? null;
     if (!targetId && onBeforeUpload) targetId = await onBeforeUpload();
     if (!targetId) {

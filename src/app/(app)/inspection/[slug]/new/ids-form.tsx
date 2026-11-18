@@ -46,7 +46,8 @@ export function IdsForm({ template }: { template: ChecksheetTemplate }) {
   const t = useTranslations("form");
   const [values, setValues] = useState<ValueMap>({});
   const [header, setHeader] = useState<HeaderValues>(EMPTY_HEADER);
-  const { state: saveState, message: saveMessage, saveDraft, savedId } = useSaveDraft();
+  const { state: saveState, message: saveMessage, saveDraft, savedId, draftKey } =
+    useSaveDraft();
 
   const cavities = Array.from({ length: IDS_CAVITY_COUNT }, (_, i) => i + 1);
   const rowJudgments: ("OK" | "NG" | null)[] = IDS_ROWS.map((row, idx) => rowJudge(values, idx, row));
@@ -116,7 +117,11 @@ export function IdsForm({ template }: { template: ChecksheetTemplate }) {
         onReset={() => setHeader(EMPTY_HEADER)}
       />
 
-      <ChecksheetAttachments checksheetId={savedId} onBeforeUpload={persistDraft} />
+      <ChecksheetAttachments
+        checksheetId={savedId}
+        draftKey={draftKey}
+        onBeforeUpload={persistDraft}
+      />
 
       <Card className="overflow-hidden border-slate-200/80">
         <CardContent className="grid gap-4 p-4 lg:grid-cols-[1.6fr_1fr]">

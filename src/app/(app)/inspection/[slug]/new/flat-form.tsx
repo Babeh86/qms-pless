@@ -53,7 +53,8 @@ export function FlatSheetForm({ template }: { template: ChecksheetTemplate }) {
   const [values, setValues] = useState<ValueMap>({});
   const [header, setHeader] = useState<HeaderValues>(EMPTY_HEADER);
   const [submitted, setSubmitted] = useState(false);
-  const { state: saveState, message: saveMessage, saveDraft, savedId } = useSaveDraft();
+  const { state: saveState, message: saveMessage, saveDraft, savedId, draftKey } =
+    useSaveDraft();
 
   const allItems = useMemo(
     () =>
@@ -158,7 +159,11 @@ export function FlatSheetForm({ template }: { template: ChecksheetTemplate }) {
         onReset={() => setHeader(EMPTY_HEADER)}
       />
 
-      <ChecksheetAttachments checksheetId={savedId} onBeforeUpload={persistDraft} />
+      <ChecksheetAttachments
+        checksheetId={savedId}
+        draftKey={draftKey}
+        onBeforeUpload={persistDraft}
+      />
 
       <div className="flex items-start gap-2 rounded-lg border border-info-500/20 bg-info-50 px-3 py-2.5">
         <Info className="mt-0.5 h-3.5 w-3.5 shrink-0 text-info-600" aria-hidden="true" />

@@ -857,6 +857,16 @@
     "failed": "{count} draft(s) failed to sync",
     "retry": "Sync now",
     "syncedAt": "Synced {time}",
-    "templatesAvailable": "Active templates available offline"
+    "templatesAvailable": "Active templates available offline",
+    "pageTitle": "You are offline",
+    "pageBody": "This page is not cached on this device yet. Saved drafts sync automatically when the connection returns.",
+    "pageAction": "Try the inspection page"
+  },
+  "notifications": {
+    "title": "Notifications",
+    "empty": "No notifications.",
+    "pendingApproval": "{count} document(s) awaiting approval",
+    "ncrOverdue": "{count} NCR(s) overdue",
+    "ncrOpen": "{count} open NCR(s)"
   }
 }

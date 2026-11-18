@@ -64,7 +64,8 @@ export function PatrolForm({ template }: { template: ChecksheetTemplate }) {
   const [header, setHeader] = useState<HeaderValues>(EMPTY_HEADER);
   const [ngReport, setNgReport] = useState<{ slot: string; no: string } | null>(null);
   const [ngSaved, setNgSaved] = useState(false);
-  const { state: saveState, message: saveMessage, saveDraft, savedId } = useSaveDraft();
+  const { state: saveState, message: saveMessage, saveDraft, savedId, draftKey } =
+    useSaveDraft();
 
   const cellKey = (slot: string, no: string) => `${slot}|${no}`;
 
@@ -148,7 +149,11 @@ export function PatrolForm({ template }: { template: ChecksheetTemplate }) {
         onReset={() => setHeader(EMPTY_HEADER)}
       />
 
-      <ChecksheetAttachments checksheetId={savedId} onBeforeUpload={persistDraft} />
+      <ChecksheetAttachments
+        checksheetId={savedId}
+        draftKey={draftKey}
+        onBeforeUpload={persistDraft}
+      />
 
       <Card className="overflow-hidden border-slate-200/80">
         <CardContent className="grid gap-4 p-4 lg:grid-cols-[1.35fr_1fr]">

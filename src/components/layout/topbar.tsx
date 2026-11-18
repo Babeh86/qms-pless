@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { useRouter, usePathname } from "next/navigation";
-import { ChevronDown, LogOut, User, Languages, Building2, Bell, Search, CircleHelp, ChevronRight } from "lucide-react";
+import { ChevronDown, LogOut, User, Languages, Building2, Bell, Search, CircleHelp, ChevronRight, ClipboardCheck, ShieldAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge, roleTone } from "@/components/ui/badge";
 import { locales, type Locale } from "@/server/i18n/config";
@@ -18,6 +18,14 @@ interface TopbarProps {
   plantName?: string;
   currentLocale: Locale;
   menuButton?: React.ReactNode;
+  notifications?: {
+    id: string;
+    kind: "approval" | "ncr";
+    titleKey: string;
+    detail: string;
+    href: string;
+    count: number;
+  }[];
 }
 
 const PAGE_TITLES: Record<string, string> = {
@@ -51,20 +59,24 @@ export function Topbar({
   plantName,
   currentLocale,
   menuButton,
+  notifications = [],
 }: TopbarProps) {
   const t = useTranslations();
   const router = useRouter();
   const pathname = usePathname();
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [langOpen, setLangOpen] = useState(false);
+  const [notifOpen, setNotifOpen] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const langRef = useRef<HTMLDivElement>(null);
+  const notifRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     function onClick(e: MouseEvent) {
       if (menuRef.current && !menuRef.current.contains(e.target as Node)) setUserMenuOpen(false);
       if (langRef.current && !langRef.current.contains(e.target as Node)) setLangOpen(false);
+      if (notifRef.current && !notifRef.current.contains(e.target as Node)) setNotifOpen(false);
     }
     document.addEventListener("mousedown", onClick);
     return () => document.removeEventListener("mousedown", onClick);
@@ -128,10 +140,68 @@ export function Topbar({
           </span>
         ) : null}
 
-        <Button variant="ghost" size="icon-sm" aria-label="Notifikasi" className="relative">
-          <Bell className="h-4 w-4" />
-          <span className="absolute top-1.5 right-1.5 h-1.5 w-1.5 rounded-full bg-danger-500 ring-2 ring-white" />
-        </Button>
+        <div className="relative" ref={notifRef}>
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            aria-label={t("notifications.title")}
+            aria-haspopup="menu"
+            aria-expanded={notifOpen}
+            onClick={() => setNotifOpen((value) => !value)}
+            className="relative"
+          >
+            <Bell className="h-4 w-4" />
+            {notifications.length > 0 ? (
+              <span className="absolute -top-0.5 -right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-danger-500 px-1 text-[9px] font-bold text-white ring-2 ring-white">
+                {notifications.reduce((sum, item) => sum + item.count, 0)}
+              </span>
+            ) : null}
+          </Button>
+
+          {notifOpen ? (
+            <div
+              role="menu"
+              className="absolute right-0 mt-1 w-72 overflow-hidden rounded-xl border border-ink-200 bg-white shadow-lg"
+            >
+              <div className="border-b border-ink-100 px-4 py-2.5">
+                <p className="text-xs font-semibold text-ink-900">{t("notifications.title")}</p>
+              </div>
+              {notifications.length === 0 ? (
+                <p className="px-4 py-6 text-center text-[11px] text-ink-500">
+                  {t("notifications.empty")}
+                </p>
+              ) : (
+                <ul className="py-1">
+                  {notifications.map((item) => {
+                    const Icon = item.kind === "approval" ? ClipboardCheck : ShieldAlert;
+                    return (
+                      <li key={item.id}>
+                        <Link
+                          href={item.href}
+                          role="menuitem"
+                          onClick={() => setNotifOpen(false)}
+                          className="flex items-center gap-2.5 px-4 py-2.5 transition-colors hover:bg-ink-50"
+                        >
+                          <span className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-brand-50 text-brand-600">
+                            <Icon className="h-3.5 w-3.5" aria-hidden="true" />
+                          </span>
+                          <span className="min-w-0 flex-1">
+                            <span className="block truncate text-[11px] font-semibold text-ink-800">
+                              {t(item.titleKey, { count: item.count })}
+                            </span>
+                          </span>
+                          <span className="rounded bg-ink-100 px-1.5 py-0.5 text-[10px] font-bold text-ink-700">
+                            {item.count}
+                          </span>
+                        </Link>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </div>
+          ) : null}
+        </div>
         <Button variant="ghost" size="icon-sm" aria-label="Bantuan" title="Pusat bantuan">
           <CircleHelp className="h-4 w-4" />
         </Button>

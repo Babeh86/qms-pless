@@ -11,6 +11,10 @@ import {
   type ReactNode,
 } from "react";
 import {
+  listQueuedAttachments,
+  removeQueuedAttachment,
+} from "@/lib/offline/attachment-queue";
+import {
   pickWinner,
   readDrafts,
   removeDraft,
@@ -76,7 +80,7 @@ export function OfflineSyncProvider({
   );
 
   const syncOne = useCallback(
-    async (draft: OfflineDraft): Promise<"synced" | "failed" | "stale"> => {
+    async (draft: OfflineDraft): Promise<{ result: "synced" | "failed" | "stale"; serverId?: string }> => {
       try {
         const created = await fetch("/api/checksheets", {
           method: "POST",
@@ -88,13 +92,13 @@ export function OfflineSyncProvider({
           }),
         });
 
-        if (created.status === 401 || created.status === 403) return "failed";
-        if (!created.ok) return "failed";
+        if (created.status === 401 || created.status === 403) return { result: "failed" };
+        if (!created.ok && created.status !== 409) return { result: "failed" };
 
         const record = (await created.json()) as { id: string; updatedAt: string };
         if (pickWinner(draft.updatedAt, record.updatedAt) === "remote") {
           // Server has newer data for this intent: keep it (latest edit wins).
-          return "stale";
+          return { result: "stale", serverId: record.id };
         }
 
         const patched = await fetch(`/api/checksheets/${record.id}`, {
@@ -115,11 +119,38 @@ export function OfflineSyncProvider({
 
         // 403/422 here means the server document moved on (e.g. submitted): keep it.
         if (patched.status === 401 || patched.status === 403 || patched.status === 409) {
-          return "stale";
+          return { result: "stale", serverId: record.id };
         }
-        return patched.ok ? "synced" : "failed";
+        return { result: patched.ok ? "synced" : "failed", serverId: record.id };
       } catch {
-        return "failed";
+        return { result: "failed" };
+      }
+    },
+    [],
+  );
+
+  /**
+   * Uploads files queued while offline to the document that just synced.
+   * A failed upload stays queued for the next attempt (files are never dropped).
+   */
+  const uploadQueuedAttachments = useCallback(
+    async (draftKey: string, checksheetId: string) => {
+      const queued = await listQueuedAttachments(draftKey);
+      for (const item of queued) {
+        const data = new FormData();
+        data.append("file", item.blob, item.fileName);
+        try {
+          const response = await fetch(`/api/checksheets/${checksheetId}/attachments`, {
+            method: "POST",
+            body: data,
+          });
+          if (response.ok || response.status === 422) {
+            // 422 means the server rejected the file (type/size); retrying cannot help.
+            await removeQueuedAttachment(item.id);
+          }
+        } catch {
+          // Keep queued; the next sync cycle retries.
+        }
       }
     },
     [],
@@ -141,7 +172,7 @@ export function OfflineSyncProvider({
         current = upsertDraft(current, { ...draft, state: "syncing" });
         persist(current);
 
-        const result = await syncOne(draft);
+        const { result, serverId } = await syncOne(draft);
 
         if (result === "failed") {
           const latest = readDrafts(userId).map((entry) =>
@@ -157,12 +188,15 @@ export function OfflineSyncProvider({
         current = removeDraft(readDrafts(userId), draft.idempotencyKey);
         persist(current);
         setLastSyncedAt(new Date().toISOString());
+
+        // Attachments queue behind their draft: the document id only exists now.
+        if (serverId) await uploadQueuedAttachments(draft.idempotencyKey, serverId);
       }
     } finally {
       running.current = false;
       setSyncing(false);
     }
-  }, [drafts.length, persist, syncOne, userId]);
+  }, [drafts.length, persist, syncOne, uploadQueuedAttachments, userId]);
 
   const enqueueDraft = useCallback(
     (idempotencyKey: string, payload: OfflineDraftPayload) => {

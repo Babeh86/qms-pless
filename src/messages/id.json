@@ -857,6 +857,16 @@
     "failed": "{count} draft gagal disinkronkan",
     "retry": "Sinkronkan",
     "syncedAt": "Tersinkron {time}",
-    "templatesAvailable": "Template aktif tersedia offline"
+    "templatesAvailable": "Template aktif tersedia offline",
+    "pageTitle": "Anda sedang offline",
+    "pageBody": "Halaman ini belum tersimpan di perangkat. Draft yang sudah disimpan akan tersinkronisasi otomatis saat koneksi kembali.",
+    "pageAction": "Coba halaman inspeksi"
+  },
+  "notifications": {
+    "title": "Notifikasi",
+    "empty": "Tidak ada notifikasi.",
+    "pendingApproval": "{count} dokumen menunggu persetujuan",
+    "ncrOverdue": "{count} NCR melewati target",
+    "ncrOpen": "{count} NCR masih terbuka"
   }
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useState } from "react";
 import { useOfflineSync } from "@/components/offline/offline-sync-provider";
 
 export interface DraftPayload {
@@ -33,7 +33,8 @@ export function useSaveDraft() {
   const [message, setMessage] = useState<string | null>(null);
   const [savedId, setSavedId] = useState<string | null>(null);
   const { online, enqueueDraft } = useOfflineSync();
-  const idempotencyKey = useRef(
+  // State (not a ref) so the key can be passed to child components during render.
+  const [idempotencyKey] = useState(() =>
     typeof crypto === "undefined" ? "draft-session" : crypto.randomUUID(),
   );
 
@@ -42,7 +43,7 @@ export function useSaveDraft() {
     setMessage(null);
 
     if (!online) {
-      enqueueDraft(idempotencyKey.current, payload);
+      enqueueDraft(idempotencyKey, payload);
       setState("saved");
       setMessage("Draft disimpan di perangkat dan akan disinkronkan otomatis.");
       return null;
@@ -64,7 +65,7 @@ export function useSaveDraft() {
                   ngItems: payload.ngItems,
                   finalJudgment: payload.finalJudgment,
                 }
-              : { ...payload, idempotencyKey: idempotencyKey.current },
+              : { ...payload, idempotencyKey: idempotencyKey },
           ),
         },
       );
@@ -85,12 +86,12 @@ export function useSaveDraft() {
       setMessage("Draft tersimpan di server.");
       return record.id;
     } catch {
-      enqueueDraft(idempotencyKey.current, payload);
+      enqueueDraft(idempotencyKey, payload);
       setState("saved");
       setMessage("Koneksi terputus. Draft disimpan di perangkat dan akan disinkronkan otomatis.");
       return null;
     }
   }
 
-  return { state, message, saveDraft, savedId };
+  return { state, message, saveDraft, savedId, draftKey: idempotencyKey };
 }
