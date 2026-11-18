@@ -26,6 +26,9 @@ export const ALL_PERMISSIONS = [
   "audit.read",
   "import.run",
   "export.master",
+  "ncr.read",
+  "ncr.create",
+  "ncr.manage",
 ] as const;
 
 export type Permission = (typeof ALL_PERMISSIONS)[number];
@@ -53,6 +56,7 @@ const MD_ADMIN_PERMISSIONS: readonly Permission[] = [
   "checksheet.export",
   "import.run",
   "export.master",
+  "ncr.read",
 ];
 
 const INSPECTOR_PERMISSIONS: readonly Permission[] = [
@@ -63,6 +67,8 @@ const INSPECTOR_PERMISSIONS: readonly Permission[] = [
   "checksheet.edit",
   "checksheet.submit",
   "checksheet.export",
+  "ncr.read",
+  "ncr.create",
 ];
 
 const CHECKED_PERMISSIONS: readonly Permission[] = [
@@ -72,6 +78,9 @@ const CHECKED_PERMISSIONS: readonly Permission[] = [
   "checksheet.check",
   "checksheet.view.all",
   "checksheet.export",
+  "ncr.read",
+  "ncr.create",
+  "ncr.manage",
 ];
 
 const APPROVED_PERMISSIONS: readonly Permission[] = [
@@ -83,6 +92,8 @@ const APPROVED_PERMISSIONS: readonly Permission[] = [
   "checksheet.view.all",
   "checksheet.export",
   "export.master",
+  "ncr.read",
+  "ncr.manage",
 ];
 
 const VIEWER_PERMISSIONS: readonly Permission[] = [
@@ -92,6 +103,7 @@ const VIEWER_PERMISSIONS: readonly Permission[] = [
   "checksheet.export",
   "audit.read",
   "export.master",
+  "ncr.read",
 ];
 
 export const ROLE_PERMISSIONS: Record<RoleCode, readonly Permission[]> = {

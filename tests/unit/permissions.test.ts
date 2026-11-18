@@ -37,6 +37,9 @@ const EXPECTED: Matrix = {
     "audit.read",
     "import.run",
     "export.master",
+    "ncr.read",
+    "ncr.create",
+    "ncr.manage",
   ],
   MD_ADMIN: [
     "numbering.manage",
@@ -50,6 +53,7 @@ const EXPECTED: Matrix = {
     "checksheet.export",
     "import.run",
     "export.master",
+    "ncr.read",
   ],
   INSPECTOR: [
     "master.read",
@@ -59,6 +63,8 @@ const EXPECTED: Matrix = {
     "checksheet.edit",
     "checksheet.submit",
     "checksheet.export",
+    "ncr.read",
+    "ncr.create",
   ],
   CHECKED: [
     "master.read",
@@ -67,6 +73,9 @@ const EXPECTED: Matrix = {
     "checksheet.check",
     "checksheet.view.all",
     "checksheet.export",
+    "ncr.read",
+    "ncr.create",
+    "ncr.manage",
   ],
   APPROVED: [
     "master.read",
@@ -77,6 +86,8 @@ const EXPECTED: Matrix = {
     "checksheet.view.all",
     "checksheet.export",
     "export.master",
+    "ncr.read",
+    "ncr.manage",
   ],
   VIEWER: [
     "master.read",
@@ -85,12 +96,13 @@ const EXPECTED: Matrix = {
     "checksheet.export",
     "audit.read",
     "export.master",
+    "ncr.read",
   ],
 };
 
 describe("ROLE_PERMISSIONS", () => {
-  it("mencakup seluruh 20 permission dan 6 role", () => {
-    expect(ALL_PERMISSIONS).toHaveLength(20);
+  it("mencakup seluruh 23 permission dan 6 role", () => {
+    expect(ALL_PERMISSIONS).toHaveLength(23);
     expect(ALL_ROLES).toHaveLength(6);
   });
 

@@ -47,7 +47,13 @@ function buildRows(list: Checksheet[]): Row[] {
   return Array.from(map.values()).sort((a, b) => a.formCode.localeCompare(b.formCode));
 }
 
-export function ReportsClient({ checksheets }: { checksheets: Checksheet[] }) {
+export function ReportsClient({
+  checksheets,
+  usingSamples = false,
+}: {
+  checksheets: Checksheet[];
+  usingSamples?: boolean;
+}) {
   const t = useTranslations("reports");
   const tLit = useTranslations("lit");
   const router = useRouter();
@@ -84,6 +90,12 @@ export function ReportsClient({ checksheets }: { checksheets: Checksheet[] }) {
           </>
         }
       />
+
+      {usingSamples ? (
+        <p className="rounded-lg border border-warning-500/30 bg-warning-50 px-3 py-2 text-[11px] font-medium text-warning-800">
+          {tLit("sampleDataNotice")}
+        </p>
+      ) : null}
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard
@@ -207,6 +219,9 @@ export function ReportsClient({ checksheets }: { checksheets: Checksheet[] }) {
                   <Th>{t("date")}</Th>
                   <Th align="center">{t("ngItems")}</Th>
                   <Th>{t("status")}</Th>
+                  <Th className="w-28" align="right">
+                    {t("actions")}
+                  </Th>
                 </tr>
               </thead>
               <tbody>
@@ -244,6 +259,14 @@ export function ReportsClient({ checksheets }: { checksheets: Checksheet[] }) {
                       <Td><span className="whitespace-nowrap text-xs">{cs.inspectionDate}</span></Td>
                       <Td align="center"><Badge tone="danger">{cs.ngItems}</Badge></Td>
                       <Td><Badge tone="neutral" dot>{cs.status}</Badge></Td>
+                      <Td align="right">
+                        <Link
+                          href={`/ncr/new?checksheetId=${cs.id}&partNo=${encodeURIComponent(cs.partNo)}&partName=${encodeURIComponent(cs.partName)}&lotNo=${encodeURIComponent(cs.lotNo)}`}
+                          className="inline-flex whitespace-nowrap rounded-md bg-danger-600 px-2 py-1 text-[10px] font-semibold text-white hover:bg-danger-700"
+                        >
+                          {t("createNcr")}
+                        </Link>
+                      </Td>
                     </Tr>
                   );
                 })}

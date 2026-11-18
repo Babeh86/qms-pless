@@ -87,3 +87,42 @@ export const checksheetTransitionSchema = z.object({
 });
 
 export type ChecksheetTransitionInput = z.infer<typeof checksheetTransitionSchema>;
+
+export const ncrCreateSchema = z.object({
+  checksheetId: z.string().min(1).max(60).optional(),
+  checksheetItemKey: z.string().min(1).max(160).optional(),
+  partNo: z.string().trim().min(1).max(80),
+  partName: z.string().trim().min(1).max(160),
+  lotNo: z.string().trim().min(1).max(80),
+  defectType: z.string().trim().min(1).max(120),
+  defectLocation: z.string().trim().max(160).optional(),
+  severity: z.enum(["MINOR", "MAJOR", "CRITICAL"]),
+  description: z.string().trim().min(5).max(2_000),
+  containment: z.string().trim().max(2_000).optional(),
+  picName: z.string().trim().max(160).optional(),
+  targetDate: dateOnly.optional(),
+});
+
+export const ncrTransitionSchema = z.object({
+  action: z.enum(["CONTAIN", "PLAN_ACTION", "VERIFY", "CLOSE", "REOPEN", "CANCEL"]),
+  note: z.string().trim().max(2_000).optional(),
+  containment: z.string().trim().max(2_000).optional(),
+  rootCause: z.string().trim().max(2_000).optional(),
+  correctiveAction: z.string().trim().max(2_000).optional(),
+  preventiveAction: z.string().trim().max(2_000).optional(),
+  verification: z.string().trim().max(2_000).optional(),
+  picName: z.string().trim().max(160).optional(),
+  targetDate: dateOnly.optional(),
+});
+
+export const ncrListQuerySchema = z.object({
+  status: z.enum(["OPEN", "CONTAINED", "IN_ACTION", "VERIFIED", "CLOSED", "CANCELLED"]).optional(),
+  severity: z.enum(["MINOR", "MAJOR", "CRITICAL"]).optional(),
+  checksheetId: z.string().max(60).optional(),
+  page: z.coerce.number().int().min(1).max(1_000).default(1),
+  pageSize: z.coerce.number().int().min(1).max(100).default(50),
+});
+
+export type NcrCreateInput = z.infer<typeof ncrCreateSchema>;
+export type NcrTransitionInput = z.infer<typeof ncrTransitionSchema>;
+export type NcrListQuery = z.infer<typeof ncrListQuerySchema>;

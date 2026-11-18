@@ -84,7 +84,7 @@ export function Sidebar({
           icon: ShieldCheck,
           ...(counts?.approval ? { badge: counts.approval } : {}),
         },
-        { href: "/reports?view=ng#ng-register", label: t("nav.ncr"), icon: ShieldAlert },
+        { href: "/ncr", label: t("nav.ncr"), icon: ShieldAlert },
         { href: "/master/partners", label: t("nav.supplierQuality"), icon: Handshake },
         { href: "/template", label: t("nav.template"), icon: FileSpreadsheet },
       ],

@@ -55,6 +55,31 @@ enum ChecksheetJudgment {
   NG
 }
 
+enum NcrStatus {
+  OPEN
+  CONTAINED
+  IN_ACTION
+  VERIFIED
+  CLOSED
+  CANCELLED
+}
+
+enum NcrSeverity {
+  MINOR
+  MAJOR
+  CRITICAL
+}
+
+enum NcrAction {
+  CREATE
+  CONTAIN
+  PLAN_ACTION
+  VERIFY
+  CLOSE
+  REOPEN
+  CANCEL
+}
+
 // ─────────────── Plant ───────────────
 
 /// Lokasi / pabrik. Scope utama seluruh data transaksi (FR-04).
@@ -73,6 +98,7 @@ model Plant {
   sessions    Session[]
   auditLogs   AuditLog[]
   checksheets Checksheet[]
+  ncrs        Ncr[]
 
   @@map("plants")
 }
@@ -100,6 +126,8 @@ model User {
   approvedChecksheets Checksheet[]           @relation("ChecksheetApprover")
   uploadedAttachments ChecksheetAttachment[]
   checksheetDecisions ChecksheetDecision[]
+  createdNcrs         Ncr[]                  @relation("NcrCreator")
+  ncrEvents           NcrEvent[]
 
   @@index([isActive])
   @@map("users")
@@ -214,6 +242,7 @@ model Checksheet {
   approver    User?                  @relation("ChecksheetApprover", fields: [approvedById], references: [id], onDelete: SetNull)
   attachments ChecksheetAttachment[]
   decisions   ChecksheetDecision[]
+  ncrs        Ncr[]
 
   @@unique([createdById, idempotencyKey])
   @@index([plantId, status, inspectionDate])
@@ -268,4 +297,64 @@ model ChecksheetAttachment {
 
   @@index([checksheetId, createdAt])
   @@map("checksheet_attachments")
+}
+
+/// Non-conformance report (NCR) raised from an NG inspection finding. CAPA fields
+/// (root cause, corrective/preventive action, verification) live on the same record
+/// so the register and CAPA tracking stay one source of truth.
+model Ncr {
+  id                String      @id @default(cuid())
+  number            String      @unique
+  plantId           String
+  checksheetId      String?
+  checksheetItemKey String?
+  partNo            String
+  partName          String
+  lotNo             String
+  defectType        String
+  defectLocation    String?
+  severity          NcrSeverity @default(MINOR)
+  description       String
+  containment       String?
+  rootCause         String?
+  correctiveAction  String?
+  preventiveAction  String?
+  verification      String?
+  picName           String?
+  targetDate        DateTime?   @db.Date
+  status            NcrStatus   @default(OPEN)
+  createdById       String
+  closedAt          DateTime?
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+
+  plant      Plant       @relation(fields: [plantId], references: [id], onDelete: Restrict)
+  checksheet Checksheet? @relation(fields: [checksheetId], references: [id], onDelete: SetNull)
+  creator    User        @relation("NcrCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  events     NcrEvent[]
+
+  @@index([plantId, status, createdAt])
+  @@index([checksheetId])
+  @@index([severity, status])
+  @@map("ncrs")
+}
+
+/// Immutable NCR/CAPA lifecycle trail.
+model NcrEvent {
+  id         String    @id @default(cuid())
+  ncrId      String
+  actorId    String
+  actorName  String
+  actorRole  RoleCode
+  action     NcrAction
+  fromStatus NcrStatus
+  toStatus   NcrStatus
+  note       String?
+  at         DateTime  @default(now())
+
+  ncr   Ncr  @relation(fields: [ncrId], references: [id], onDelete: Cascade)
+  actor User @relation(fields: [actorId], references: [id], onDelete: Restrict)
+
+  @@index([ncrId, at])
+  @@map("ncr_events")
 }
