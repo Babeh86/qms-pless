@@ -30,6 +30,7 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 /dev.log
+/prod.log
 
 # local browser test captures
 /shots/
